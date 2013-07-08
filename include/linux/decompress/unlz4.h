@@ -1,7 +1,7 @@
-#ifndef DECOMPRESS_UNLZO_H
-#define DECOMPRESS_UNLZO_H
+#ifndef DECOMPRESS_UNLZ4_H
+#define DECOMPRESS_UNLZ4_H
 
-int unlzo(unsigned char *inbuf, long len,
+int unlz4(unsigned char *inbuf, long len,
 	long (*fill)(void*, unsigned long),
 	long (*flush)(void*, unsigned long),
 	unsigned char *output,
