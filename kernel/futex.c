@@ -155,6 +155,36 @@ struct futex_hash_bucket {
 
 static struct futex_hash_bucket futex_queues[1<<FUTEX_HASHBITS];
 
+static inline void futex_get_mm(union futex_key *key)
+{
+	atomic_inc(&key->private.mm->mm_count);
+	/*
+	 * Ensure futex_get_mm() implies a full barrier such that
+	 * get_futex_key() implies a full barrier. This is relied upon
+	 * as full barrier (B), see the ordering comment above.
+	 */
+	smp_mb__after_atomic_inc();
+}
+
+static inline bool hb_waiters_pending(struct futex_hash_bucket *hb)
+{
+#ifdef CONFIG_SMP
+	/*
+	 * Tasks trying to enter the critical region are most likely
+	 * potential waiters that will be added to the plist. Ensure
+	 * that wakers won't miss to-be-slept tasks in the window between
+	 * the wait call and the actual plist_add.
+	 */
+	if (spin_is_locked(&hb->lock))
+		return true;
+	smp_rmb(); /* Make sure we check the lock state first */
+
+	return !plist_head_empty(&hb->chain);
+#else
+	return true;
+#endif
+}
+
 /*
  * We hash on the keys returned from get_futex_key (see below).
  */
@@ -189,10 +219,10 @@ static void get_futex_key_refs(union futex_key *key)
 
 	switch (key->both.offset & (FUT_OFF_INODE|FUT_OFF_MMSHARED)) {
 	case FUT_OFF_INODE:
-		ihold(key->shared.inode);
+		ihold(key->shared.inode); /* implies MB (B) */
 		break;
 	case FUT_OFF_MMSHARED:
-		atomic_inc(&key->private.mm->mm_count);
+		futex_get_mm(key); /* implies MB (B) */
 		break;
 	}
 }
@@ -265,7 +295,7 @@ get_futex_key(u32 __user *uaddr, int fshared, union futex_key *key, int rw)
 			return -EFAULT;
 		key->private.mm = mm;
 		key->private.address = address;
-		get_futex_key_refs(key);
+		get_futex_key_refs(key);  /* implies MB (B) */
 		return 0;
 	}
 
@@ -372,7 +402,7 @@ again:
 		key->shared.pgoff = basepage_index(page);
 	}
 
-	get_futex_key_refs(key);
+	get_futex_key_refs(key); /* implies MB (B) */
 
 out:
 	unlock_page(page_head);
@@ -1097,6 +1127,10 @@ futex_wake(u32 __user *uaddr, unsigned int flags, int nr_wake, u32 bitset)
 	spin_lock(&hb->lock);
 	head = &hb->chain;
 
+	/* Make sure we really have tasks to wakeup */
+	if (!hb_waiters_pending(hb))
+		goto out_put_key;
+
 	plist_for_each_entry_safe(this, next, head, list) {
 		if (match_futex (&this->key, &key)) {
 			if (this->pi_state || this->rt_waiter) {
@@ -1116,6 +1150,7 @@ futex_wake(u32 __user *uaddr, unsigned int flags, int nr_wake, u32 bitset)
 
 	spin_unlock(&hb->lock);
 	wake_up_q(&wake_q);
+out_put_key:
 	put_futex_key(&key);
 out:
 	return ret;
@@ -1616,7 +1651,7 @@ static inline struct futex_hash_bucket *queue_lock(struct futex_q *q)
 	hb = hash_futex(&q->key);
 	q->lock_ptr = &hb->lock;
 
-	spin_lock(&hb->lock);
+	spin_lock(&hb->lock); /* implies MB (A) */
 	return hb;
 }
 
