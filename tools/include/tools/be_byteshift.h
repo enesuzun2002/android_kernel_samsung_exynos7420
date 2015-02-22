@@ -1,7 +1,11 @@
 #ifndef _TOOLS_BE_BYTESHIFT_H
 #define _TOOLS_BE_BYTESHIFT_H
 
+#ifdef __linux__
 #include <linux/types.h>
+#else
+#include "linux_types.h"
+#endif
 
 static inline __u16 __get_unaligned_be16(const __u8 *p)
 {
