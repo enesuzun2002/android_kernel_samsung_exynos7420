@@ -12,7 +12,7 @@
  *  GNU General Public License for more details.
  *
  */
-#include "../ssp.h"
+#include "ssp.h"
 #include "magnetic_yas537.h"
 
 /*************************************************************************/
