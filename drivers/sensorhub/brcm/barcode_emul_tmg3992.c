@@ -1,4 +1,4 @@
-#include "../ssp.h"
+#include "ssp.h"
 #include <linux/sec_sysfs.h>
 
 #define	VENDOR		"AMS"

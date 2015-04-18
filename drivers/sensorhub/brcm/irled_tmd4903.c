@@ -1,4 +1,4 @@
-#include "../ssp.h"
+#include "ssp.h"
 
 #define	VENDOR		"AMS"
 #define	CHIP_ID		"TMG399x"

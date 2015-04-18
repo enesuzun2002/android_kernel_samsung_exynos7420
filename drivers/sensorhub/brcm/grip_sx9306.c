@@ -13,7 +13,7 @@
  *
  */
 
-#include "../ssp.h"
+#include "ssp.h"
 
 #define VENDOR					"SEMTECH"
 #define CALIBRATION_FILE_PATH			"/efs/FactoryApp/grip_cal_data"
