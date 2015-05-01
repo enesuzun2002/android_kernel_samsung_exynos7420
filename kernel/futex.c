@@ -1150,7 +1150,7 @@ futex_wake(u32 __user *uaddr, unsigned int flags, int nr_wake, u32 bitset)
 
 	spin_unlock(&hb->lock);
 	wake_up_q(&wake_q);
-out_put_key:
+        out_put_key:
 	put_futex_key(&key);
 out:
 	return ret;
