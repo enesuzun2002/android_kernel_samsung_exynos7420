@@ -99,8 +99,8 @@ static struct apll_freq exynos7420_apll_freq_CA57[] = {
 	 * PLL M, P, S values are NOT used, Instead CCF clk_set_rate is used
 	 */
 	APLL_ATLAS_FREQ(2496, 0, 0, 2, 6, 6, 6, 1, 5, 6, 208, 2, 0),    /* ARM L0: 2.5GHz  */
-	APLL_ATLAS_FREQ(2400, 0, 0, 2, 6, 6, 6, 1, 5, 6, 200, 2, 0),    /* ARM L1: 2.4GMHz */
-	APLL_ATLAS_FREQ(2304, 0, 0, 2, 6, 6, 6, 1, 5, 6, 192, 2, 0),    /* ARM L2: 2.3GMHz */
+	APLL_ATLAS_FREQ(2400, 0, 0, 2, 6, 6, 6, 1, 5, 6, 200, 2, 0),    /* ARM L1: 2.4GHz */
+	APLL_ATLAS_FREQ(2304, 0, 0, 2, 6, 6, 6, 1, 5, 6, 192, 2, 0),    /* ARM L2: 2.3GHz */
 	APLL_ATLAS_FREQ(2200, 0, 0, 2, 6, 6, 6, 1, 5, 6, 275, 3, 0),    /* ARM L3: 2.2GHz  */
 	APLL_ATLAS_FREQ(2100, 0, 0, 2, 6, 6, 6, 1, 5, 6, 175, 2, 0),    /* ARM L4: 2.1GHz  */
 	APLL_ATLAS_FREQ(2000, 0, 0, 2, 6, 6, 6, 1, 5, 6, 250, 3, 0),    /* ARM L5: 2.0GHz  */
