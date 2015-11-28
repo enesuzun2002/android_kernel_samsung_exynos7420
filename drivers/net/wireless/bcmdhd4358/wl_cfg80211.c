@@ -5436,7 +5436,6 @@ wl_cfg80211_set_power_mgmt(struct wiphy *wiphy, struct net_device *dev,
 	/* Enlarge pm_enable_work */
 	wl_add_remove_pm_enable_work(cfg, WL_PM_WORKQ_LONG);
 
-	pm = enabled ? PM_FAST : PM_OFF;
 	if (_net_info->pm_block) {
 		WL_ERR(("%s:Do not enable the power save for pm_block %d\n",
 			dev->name, _net_info->pm_block));
