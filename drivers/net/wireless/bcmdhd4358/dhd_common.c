@@ -2734,7 +2734,7 @@ dhd_get_suspend_bcn_li_dtim(dhd_pub_t *dhd)
 		}
 	}
 
-	DHD_ERROR(("%s beacon=%d bcn_li_dtim=%d DTIM=%d Listen=%d\n",
+	DHD_INFO(("%s beacon=%d bcn_li_dtim=%d DTIM=%d Listen=%d\n",
 		__FUNCTION__, ap_beacon, bcn_li_dtim, dtim_period, CUSTOM_LISTEN_INTERVAL));
 
 exit:
