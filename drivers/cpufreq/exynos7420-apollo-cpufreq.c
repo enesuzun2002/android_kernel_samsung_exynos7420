@@ -371,9 +371,16 @@ int __init exynos_cpufreq_cluster0_init(struct exynos_dvfs_info *info)
 	info->max_support_idx = max_support_idx_CA53;
 	info->min_support_idx = min_support_idx_CA53;
 	info->boost_freq = exynos7420_freq_table_CA53[L10].frequency;
-	/* booting frequency is 1.4GHz */
-	info->boot_cpu_min_qos = exynos7420_freq_table_CA53[L6].frequency;
-	info->boot_cpu_max_qos = exynos7420_freq_table_CA53[L6].frequency;
+	/* booting frequency */
+	#ifdef EXYNOS7420_CPU_OVERCLOCK
+		/* booting frequency is 1.5GHz */
+		info->boot_cpu_min_qos = exynos7420_freq_table_CA53[L5].frequency;
+		info->boot_cpu_max_qos = exynos7420_freq_table_CA53[L5].frequency;	
+	#else
+		/* booting frequency is 1.4GHz */
+		info->boot_cpu_min_qos = exynos7420_freq_table_CA53[L6].frequency;
+		info->boot_cpu_max_qos = exynos7420_freq_table_CA53[L6].frequency;
+	#endif
 #if defined(CONFIG_PMU_COREMEM_RATIO)
 	info->region_bus_table = exynos7420_region_bus_table_CA53;
 #else
