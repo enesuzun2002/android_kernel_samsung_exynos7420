@@ -458,9 +458,16 @@ int __init exynos_cpufreq_cluster1_init(struct exynos_dvfs_info *info)
 	info->max_support_idx = max_support_idx_CA57;
 	info->min_support_idx = min_support_idx_CA57;
 
-	/* booting frequency is 1.7GHz */
-	info->boot_cpu_min_qos = exynos7420_freq_table_CA57[L8].frequency;
-	info->boot_cpu_max_qos = exynos7420_freq_table_CA57[L8].frequency;
+	/* booting frequency */
+	#ifdef EXYNOS7420_CPU_OVERCLOCK
+		/* booting frequency is 1.7GHz */
+		info->boot_cpu_min_qos = exynos7420_freq_table_CA57[L8].frequency;
+		info->boot_cpu_max_qos = exynos7420_freq_table_CA57[L8].frequency;
+	#else
+		/* booting frequency is 1.7GHz */
+		info->boot_cpu_min_qos = exynos7420_freq_table_CA57[L8].frequency;
+		info->boot_cpu_max_qos = exynos7420_freq_table_CA57[L8].frequency;		
+	#endif
 #ifdef CONFIG_SEC_PM
 	/* booting max frequency is 1.5GHz when JIG cable is attached */
 	info->jig_boot_cpu_max_qos = exynos7420_freq_table_CA57[L10].frequency;
