@@ -10,6 +10,7 @@
 #include <linux/linkage.h>
 #include <linux/list.h>
 
+<<<<<<< HEAD
 static __always_inline int preempt_count(void)
 {
 	return READ_ONCE(current_thread_info()->preempt_count);
@@ -26,6 +27,9 @@ static __always_inline void preempt_count_set(int pc)
 }
 
 #if defined(CONFIG_DEBUG_PREEMPT) || defined(CONFIG_PREEMPT_TRACER)
+=======
+#if 0 && defined(CONFIG_DEBUG_PREEMPT) || defined(CONFIG_PREEMPT_TRACER)
+>>>>>>> 94722af... Backport EAS scheduler from 3.18
   extern void add_preempt_count(int val);
   extern void sub_preempt_count(int val);
 #else

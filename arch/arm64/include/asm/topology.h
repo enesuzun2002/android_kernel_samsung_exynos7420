@@ -52,7 +52,7 @@ DECLARE_PER_CPU(atomic_long_t, cpu_freq_capacity);
 				| 1*SD_BALANCE_FORK			\
 				| 0*SD_BALANCE_WAKE			\
 				| 1*SD_WAKE_AFFINE			\
-				| 0*SD_SHARE_CPUPOWER			\
+				| 0*SD_SHARE_CPUCAPACITY			\
 				| 0*SD_SHARE_PKG_RESOURCES		\
 				| 0*SD_SERIALIZE			\
 				,					\

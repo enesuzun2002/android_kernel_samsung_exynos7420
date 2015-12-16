@@ -33,7 +33,11 @@ struct cpuacct {
 	struct kernel_cpustat __percpu *cpustat;
 };
 
-/* return cpu accounting group corresponding to this container */
+static inline struct cpuacct *css_ca(struct cgroup_subsys_state *css)
+{
+	return css ? container_of(css, struct cpuacct, css) : NULL;
+}
+
 static inline struct cpuacct *cgroup_ca(struct cgroup *cgrp)
 {
 	return container_of(cgroup_subsys_state(cgrp, cpuacct_subsys_id),
@@ -281,7 +285,7 @@ void cpuacct_account_field(struct task_struct *p, int index, u64 val)
 	while (ca != &root_cpuacct) {
 		kcpustat = this_cpu_ptr(ca->cpustat);
 		kcpustat->cpustat[index] += val;
-		ca = __parent_ca(ca);
+		ca = parent_ca(ca);
 	}
 	rcu_read_unlock();
 }

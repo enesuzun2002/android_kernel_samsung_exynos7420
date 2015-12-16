@@ -2,6 +2,7 @@
 #define _SCHED_RT_H
 
 #include <linux/sched/prio.h>
+<<<<<<< HEAD
 
 #define MAX_NICE	19
 #define MIN_NICE	-20
@@ -14,6 +15,8 @@
 #define NICE_TO_PRIO(nice)	(MAX_RT_PRIO + (nice) + 20)
 #define PRIO_TO_NICE(prio)	((prio) - MAX_RT_PRIO - 20)
 #define TASK_NICE(p)		PRIO_TO_NICE((p)->static_prio)
+=======
+>>>>>>> 94722af... Backport EAS scheduler from 3.18
 
 static inline int rt_prio(int prio)
 {
@@ -30,6 +33,7 @@ static inline int rt_task(struct task_struct *p)
 #ifdef CONFIG_RT_MUTEXES
 extern int rt_mutex_getprio(struct task_struct *p);
 extern void rt_mutex_setprio(struct task_struct *p, int prio);
+extern int rt_mutex_get_effective_prio(struct task_struct *task, int newprio);
 extern void rt_mutex_adjust_pi(struct task_struct *p);
 static inline bool tsk_is_pi_blocked(struct task_struct *tsk)
 {
@@ -40,12 +44,23 @@ static inline int rt_mutex_getprio(struct task_struct *p)
 {
 	return p->normal_prio;
 }
+# define rt_mutex_setprio(p, prio)		do { } while (0)
+static inline int rt_mutex_get_effective_prio(struct task_struct *task,
+					      int newprio)
+{
+	return newprio;
+}
 # define rt_mutex_adjust_pi(p)		do { } while (0)
 static inline bool tsk_is_pi_blocked(struct task_struct *tsk)
 {
 	return false;
 }
 #endif
+
+static inline struct task_struct *rt_mutex_get_top_task(struct task_struct *task)
+{
+	return NULL;
+}
 
 extern void normalize_rt_tasks(void);
 
