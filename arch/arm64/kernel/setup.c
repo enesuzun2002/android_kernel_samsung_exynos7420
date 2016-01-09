@@ -418,6 +418,8 @@ u64 __cpu_logical_map[NR_CPUS] = { [0 ... NR_CPUS-1] = INVALID_HWID };
 
 struct machine_desc *machine_desc __initdata;
 
+void __init __weak init_random_pool(void) { }
+
 void __init setup_arch(char **cmdline_p)
 {
 	struct machine_desc *mdesc;
@@ -474,6 +476,8 @@ void __init setup_arch(char **cmdline_p)
 #endif
 	if (mdesc->init_early)
 		mdesc->init_early();
+	
+	init_random_pool();
 }
 
 static int __init arm64_device_init(void)
