@@ -385,13 +385,13 @@ static void __init set_volt_table_CA57(void)
 	case 5 :
 		max_support_idx_CA57 = L10; break;	/* 1.5GHz */
 	default :
-		max_support_idx_CA57 = G92X_CPU_MAX_FREQ_BIG;
+		max_support_idx_CA57 = EXYNOS7420_CPU_MAX_FREQ_BIG;
 	}
 #else
 	max_support_idx_CA57 = L13;	/* 1.2 GHz */
 #endif
 
-	min_support_idx_CA57 = G92X_CPU_MIN_FREQ_BIG;
+	min_support_idx_CA57 = EXYNOS7420_CPU_MIN_FREQ_BIG;	
 
 	pr_info("CPUFREQ of CA57 max_freq : L%d %u khz\n", max_support_idx_CA57,
 		exynos7420_freq_table_CA57[max_support_idx_CA57].frequency);

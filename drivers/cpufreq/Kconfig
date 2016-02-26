@@ -229,13 +229,13 @@ config GENERIC_CPUFREQ_CPU0
 
 	  If in doubt, say N.
 
-config G92X_CPU_UNDERCLOCK
+config EXYNOS7420_CPU_UNDERCLOCK
 	bool "Exynos7420 min cpu frequenz"
 	depends on ARM_EXYNOS7420_CPUFREQ
 	help
 	   Sets Apollo and Atlas clusters to min cpu frequenz
 	   
-config G92X_CPU_OVERCLOCK
+config EXYNOS7420_CPU_OVERCLOCK
 	bool "Exynos7420 max cpu frequenz"
 	depends on ARM_EXYNOS7420_CPUFREQ
 	help
