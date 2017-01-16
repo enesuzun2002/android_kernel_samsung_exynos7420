@@ -46,6 +46,9 @@ static DEFINE_MUTEX(selinux_status_lock);
  */
 struct page *selinux_kernel_status_page(void)
 {
+#ifdef CONFIG_SECURITY_SELINUX_FAKE_ENFORCE
+	int selinux_enforcing = 1;
+#endif
 	struct selinux_kernel_status   *status;
 	struct page		       *result = NULL;
 
@@ -59,8 +62,10 @@ struct page *selinux_kernel_status_page(void)
 			status->version = SELINUX_KERNEL_STATUS_VERSION;
 			status->sequence = 0;
 // [ SEC_SELINUX_PORTING_COMMON
-#ifdef CONFIG_ALWAYS_ENFORCE
+#if defined(CONFIG_SECURITY_SELINUX_ALWAYS_ENFORCE)
 			status->enforcing = 1;
+#elif defined(CONFIG_SECURITY_SELINUX_NEVER_ENFORCE)
+			status->enforcing = 0;
 #else
 			status->enforcing = selinux_enforcing;
 #endif
