@@ -76,6 +76,7 @@
 #include <linux/printk.h>
 #include <linux/cgroup.h>
 #include <linux/cpuset.h>
+#include <linux/cpufreq.h>
 #include <linux/audit.h>
 #include <linux/poll.h>
 #include <linux/nsproxy.h>
@@ -2729,6 +2730,9 @@ static const struct pid_entry tgid_base_stuff[] = {
 #ifdef CONFIG_CHECKPOINT_RESTORE
 	REG("timers",	  S_IRUGO, proc_timers_operations),
 #endif
+#ifdef CONFIG_CPU_FREQ_STAT
+	ONE("time_in_state", 0444, proc_time_in_state_show),
+#endif
 };
 
 static int proc_tgid_base_readdir(struct file * filp,
@@ -3078,6 +3082,9 @@ static const struct pid_entry tid_base_stuff[] = {
 	REG("uid_map",    S_IRUGO|S_IWUSR, proc_uid_map_operations),
 	REG("gid_map",    S_IRUGO|S_IWUSR, proc_gid_map_operations),
 	REG("projid_map", S_IRUGO|S_IWUSR, proc_projid_map_operations),
+#endif
+#ifdef CONFIG_CPU_FREQ_STAT
+	ONE("time_in_state", 0444, proc_time_in_state_show),
 #endif
 };
 
