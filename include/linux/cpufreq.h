@@ -14,6 +14,7 @@
 #include <asm/cputime.h>
 #include <linux/mutex.h>
 #include <linux/notifier.h>
+#include <linux/pid_namespace.h>
 #include <linux/threads.h>
 #include <linux/kobject.h>
 #include <linux/sysfs.h>
@@ -492,6 +493,16 @@ void cpufreq_frequency_table_put_attr(unsigned int cpu);
  *                         CPUFREQ STATS                             *
  *********************************************************************/
 
+#ifdef CONFIG_CPU_FREQ_STAT
 void acct_update_power(struct task_struct *p, cputime_t cputime);
+void cpufreq_task_stats_init(struct task_struct *p);
+void cpufreq_task_stats_exit(struct task_struct *p);
+int  proc_time_in_state_show(struct seq_file *m, struct pid_namespace *ns,
+			     struct pid *pid, struct task_struct *p);
+#else
+static inline void acct_update_power(struct task_struct *p, cputime_t cputime) {}
+static inline void cpufreq_task_stats_init(struct task_struct *p) {}
+static inline void cpufreq_task_stats_exit(struct task_struct *p) {}
+#endif
 
 #endif /* _LINUX_CPUFREQ_H */
