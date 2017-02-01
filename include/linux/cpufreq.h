@@ -20,6 +20,7 @@
 #include <linux/completion.h>
 #include <linux/workqueue.h>
 #include <linux/cpumask.h>
+#include <linux/pid_namespace.h>
 #include <asm/div64.h>
 
 #define CPUFREQ_NAME_LEN 16
@@ -529,4 +530,17 @@ void cpufreq_frequency_table_get_attr(struct cpufreq_frequency_table *table,
 void cpufreq_frequency_table_update_policy_cpu(struct cpufreq_policy *policy);
 
 void cpufreq_frequency_table_put_attr(unsigned int cpu);
+
+#ifdef CONFIG_CPU_FREQ_STAT
+void cpufreq_task_stats_init(struct task_struct *p);
+void cpufreq_task_stats_exit(struct task_struct *p);
+int proc_time_in_state_show(struct seq_file *m, struct pid_namespace *ns,
+        struct pid *pid, struct task_struct *p);
+#else
+static inline void cpufreq_task_stats_init(struct task_struct *p) { }
+static inline void cpufreq_task_stats_exit(struct task_struct *p) { }
+static inline int proc_time_in_state_show(struct seq_file *m, struct pid_namespace *ns,
+        struct pid *pid, struct task_struct *p) { }
+#endif
+
 #endif /* _LINUX_CPUFREQ_H */
