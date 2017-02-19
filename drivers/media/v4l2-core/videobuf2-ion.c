@@ -202,9 +202,11 @@ void *vb2_ion_private_alloc(void *alloc_ctx, size_t size, int write, int plane)
 	flags |= ctx_cached(ctx) ?
 		ION_FLAG_CACHED | ION_FLAG_CACHED_NEEDS_SYNC : 0;
 
+#if 0
 	if ((ion_flag(ctx->flags) & VB2ION_CTX_DRM_VIDEO) ||
 			(ion_flag(ctx->flags) & VB2ION_CTX_DRM_MFCFW))
 		flags |= ION_FLAG_PROTECTED;
+#endif
 
 	buf->handle = ion_alloc(ctx->client, size, ctx->alignment,
 				heapflags, flags);
