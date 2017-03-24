@@ -54,6 +54,8 @@ enum kobject_action {
 	KOBJ_MOVE,
 	KOBJ_ONLINE,
 	KOBJ_OFFLINE,
+	KOBJ_POLICY_INIT,
+	KOBJ_POLICY_EXIT,
 	KOBJ_MAX
 };
 
@@ -114,6 +116,7 @@ struct kobj_type {
 };
 
 struct kobj_uevent_env {
+	char *argv[3];
 	char *envp[UEVENT_NUM_ENVP];
 	int envp_idx;
 	char buf[UEVENT_BUFFER_SIZE];

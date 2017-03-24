@@ -78,12 +78,15 @@ struct dst_entry *inet6_csk_route_req(struct sock *sk,
 	memset(fl6, 0, sizeof(*fl6));
 	fl6->flowi6_proto = IPPROTO_TCP;
 	fl6->daddr = treq->rmt_addr;
-	final_p = fl6_update_dst(fl6, np->opt, &final);
+	rcu_read_lock();
+	final_p = fl6_update_dst(fl6, rcu_dereference(np->opt), &final);
+	rcu_read_unlock();
 	fl6->saddr = treq->loc_addr;
 	fl6->flowi6_oif = treq->iif;
-	fl6->flowi6_mark = sk->sk_mark;
+	fl6->flowi6_mark = inet_rsk(req)->ir_mark;
 	fl6->fl6_dport = inet_rsk(req)->rmt_port;
 	fl6->fl6_sport = inet_rsk(req)->loc_port;
+	fl6->flowi6_uid = sock_i_uid(sk);
 	security_req_classify_flow(req, flowi6_to_flowi(fl6));
 
 	dst = ip6_dst_lookup_flow(sk, fl6, final_p, false);
@@ -96,8 +99,11 @@ struct dst_entry *inet6_csk_route_req(struct sock *sk,
 /*
  * request_sock (formerly open request) hash tables.
  */
-static u32 inet6_synq_hash(const struct in6_addr *raddr, const __be16 rport,
-			   const u32 rnd, const u32 synq_hsize)
+#ifndef CONFIG_MPTCP
+static 
+#endif
+u32 inet6_synq_hash(const struct in6_addr *raddr, const __be16 rport,
+		    const u32 rnd, const u32 synq_hsize)
 {
 	u32 c;
 
@@ -165,11 +171,10 @@ EXPORT_SYMBOL_GPL(inet6_csk_reqsk_queue_hash_add);
 
 void inet6_csk_addr2sockaddr(struct sock *sk, struct sockaddr * uaddr)
 {
-	struct ipv6_pinfo *np = inet6_sk(sk);
 	struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *) uaddr;
 
 	sin6->sin6_family = AF_INET6;
-	sin6->sin6_addr = np->daddr;
+	sin6->sin6_addr = sk->sk_v6_daddr;
 	sin6->sin6_port	= inet_sk(sk)->inet_dport;
 	/* We do not store received flowlabel for TCP */
 	sin6->sin6_flowinfo = 0;
@@ -203,7 +208,7 @@ static struct dst_entry *inet6_csk_route_socket(struct sock *sk,
 
 	memset(fl6, 0, sizeof(*fl6));
 	fl6->flowi6_proto = sk->sk_protocol;
-	fl6->daddr = np->daddr;
+	fl6->daddr = sk->sk_v6_daddr;
 	fl6->saddr = np->saddr;
 	fl6->flowlabel = np->flow_label;
 	IP6_ECN_flow_xmit(sk, fl6->flowlabel);
@@ -211,9 +216,12 @@ static struct dst_entry *inet6_csk_route_socket(struct sock *sk,
 	fl6->flowi6_mark = sk->sk_mark;
 	fl6->fl6_sport = inet->inet_sport;
 	fl6->fl6_dport = inet->inet_dport;
+	fl6->flowi6_uid = sock_i_uid(sk);
 	security_sk_classify_flow(sk, flowi6_to_flowi(fl6));
 
-	final_p = fl6_update_dst(fl6, np->opt, &final);
+	rcu_read_lock();
+	final_p = fl6_update_dst(fl6, rcu_dereference(np->opt), &final);
+	rcu_read_unlock();
 
 	dst = __inet6_csk_dst_check(sk, np->dst_cookie);
 	if (!dst) {
@@ -245,9 +253,10 @@ int inet6_csk_xmit(struct sk_buff *skb, struct flowi *fl_unused)
 	skb_dst_set_noref(skb, dst);
 
 	/* Restore final destination back after routing done */
-	fl6.daddr = np->daddr;
+	fl6.daddr = sk->sk_v6_daddr;
 
-	res = ip6_xmit(sk, skb, &fl6, np->opt, np->tclass);
+	res = ip6_xmit(sk, skb, &fl6, rcu_dereference(np->opt),
+		       np->tclass);
 	rcu_read_unlock();
 	return res;
 }

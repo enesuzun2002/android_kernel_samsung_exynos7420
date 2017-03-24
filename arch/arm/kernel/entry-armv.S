@@ -416,9 +416,8 @@ __und_usr:
 	bne	__und_usr_thumb
 	sub	r4, r2, #4			@ ARM instr at LR - 4
 1:	ldrt	r0, [r4]
-#ifdef CONFIG_CPU_ENDIAN_BE8
-	rev	r0, r0				@ little endian instruction
-#endif
+ ARM_BE8(rev	r0, r0)				@ little endian instruction
+
 	@ r0 = 32-bit ARM instruction which caused the exception
 	@ r2 = PC value for the following instruction (:= regs->ARM_pc)
 	@ r4 = PC value for the faulting instruction
@@ -686,15 +685,16 @@ ENTRY(__switch_to)
  UNWIND(.fnstart	)
  UNWIND(.cantunwind	)
 	add	ip, r1, #TI_CPU_SAVE
-	ldr	r3, [r2, #TI_TP_VALUE]
  ARM(	stmia	ip!, {r4 - sl, fp, sp, lr} )	@ Store most regs on stack
  THUMB(	stmia	ip!, {r4 - sl, fp}	   )	@ Store most regs on stack
  THUMB(	str	sp, [ip], #4		   )
  THUMB(	str	lr, [ip], #4		   )
+	ldr	r4, [r2, #TI_TP_VALUE]
+	ldr	r5, [r2, #TI_TP_VALUE + 4]
 #ifdef CONFIG_CPU_USE_DOMAINS
 	ldr	r6, [r2, #TI_CPU_DOMAIN]
 #endif
-	set_tls	r3, r4, r5
+	switch_tls r1, r4, r5, r3, r7
 #if defined(CONFIG_CC_STACKPROTECTOR) && !defined(CONFIG_SMP)
 	ldr	r7, [r2, #TI_TASK]
 	ldr	r8, =__stack_chk_guard

@@ -365,7 +365,8 @@ static int snd_pcm_update_hw_ptr0(struct snd_pcm_substream *substream,
 		if (delta > new_hw_ptr) {
 			/* check for double acknowledged interrupts */
 			hdelta = curr_jiffies - runtime->hw_ptr_jiffies;
-			if (hdelta > runtime->hw_ptr_buffer_jiffies/2) {
+			if (runtime->control->appl_ptr >= old_hw_ptr &&
+				hdelta > runtime->hw_ptr_buffer_jiffies/2) {
 				hw_base += runtime->buffer_size;
 				if (hw_base >= runtime->boundary) {
 					hw_base = 0;
@@ -1782,16 +1783,14 @@ static int snd_pcm_lib_ioctl_fifo_size(struct snd_pcm_substream *substream,
 {
 	struct snd_pcm_hw_params *params = arg;
 	snd_pcm_format_t format;
-	int channels;
-	ssize_t frame_size;
+	int channels, width;
 
 	params->fifo_size = substream->runtime->hw.fifo_size;
 	if (!(substream->runtime->hw.info & SNDRV_PCM_INFO_FIFO_IN_FRAMES)) {
 		format = params_format(params);
 		channels = params_channels(params);
-		frame_size = snd_pcm_format_size(format, channels);
-		if (frame_size > 0)
-			params->fifo_size /= (unsigned)frame_size;
+		width = snd_pcm_format_physical_width(format);
+		params->fifo_size /= width * channels;
 	}
 	return 0;
 }
@@ -1938,8 +1937,6 @@ static int wait_for_avail(struct snd_pcm_substream *substream,
 		case SNDRV_PCM_STATE_DISCONNECTED:
 			err = -EBADFD;
 			goto _endloop;
-		case SNDRV_PCM_STATE_PAUSED:
-			continue;
 		}
 		if (!tout) {
 			snd_printd("%s write error (DMA or IRQ trouble?)\n",

@@ -9,7 +9,6 @@
  * manipulate wakelocks on Android.
  */
 
-#include <linux/capability.h>
 #include <linux/ctype.h>
 #include <linux/device.h>
 #include <linux/err.h>
@@ -79,7 +78,7 @@ static inline void decrement_wakelocks_number(void) {}
 
 #ifdef CONFIG_PM_WAKELOCKS_GC
 #define WL_GC_COUNT_MAX	100
-#define WL_GC_TIME_SEC	300
+#define WL_GC_TIME_SEC	3000
 
 static LIST_HEAD(wakelocks_lru_list);
 static unsigned int wakelocks_gc_count;
@@ -189,9 +188,6 @@ int pm_wake_lock(const char *buf)
 	size_t len;
 	int ret = 0;
 
-	if (!capable(CAP_BLOCK_SUSPEND))
-		return -EPERM;
-
 	while (*str && !isspace(*str))
 		str++;
 
@@ -234,9 +230,12 @@ int pm_wake_unlock(const char *buf)
 	struct wakelock *wl;
 	size_t len;
 	int ret = 0;
+#ifdef CONFIG_SEC_PM_DEBUG
+	ktime_t start_time, end_time;
+	u64 delta_time_ns;
 
-	if (!capable(CAP_BLOCK_SUSPEND))
-		return -EPERM;
+	start_time = ktime_get();
+#endif
 
 	len = strlen(buf);
 	if (!len)
@@ -262,5 +261,14 @@ int pm_wake_unlock(const char *buf)
 
  out:
 	mutex_unlock(&wakelocks_lock);
+
+#ifdef CONFIG_SEC_PM_DEBUG
+	end_time = ktime_get();
+	delta_time_ns = ktime_to_ns(ktime_sub(end_time, start_time));
+
+	if (delta_time_ns > ((u64)40 * NSEC_PER_MSEC))
+		pr_info("%s: ret=%d elapsed time:%llu\n", __func__, ret,
+				delta_time_ns / NSEC_PER_MSEC);
+#endif
 	return ret;
 }

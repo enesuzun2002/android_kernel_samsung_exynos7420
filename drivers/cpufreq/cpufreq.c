@@ -133,6 +133,16 @@ bool have_governor_per_policy(void)
 {
 	return cpufreq_driver->have_governor_per_policy;
 }
+EXPORT_SYMBOL_GPL(have_governor_per_policy);
+
+struct kobject *get_governor_parent_kobj(struct cpufreq_policy *policy)
+{
+	if (have_governor_per_policy())
+		return &policy->kobj;
+	else
+		return cpufreq_global_kobject;
+}
+EXPORT_SYMBOL_GPL(get_governor_parent_kobj);
 
 static struct cpufreq_policy *__cpufreq_cpu_get(unsigned int cpu, bool sysfs)
 {
@@ -306,6 +316,11 @@ void __cpufreq_notify_transition(struct cpufreq_policy *policy,
 void cpufreq_notify_transition(struct cpufreq_policy *policy,
 		struct cpufreq_freqs *freqs, unsigned int state)
 {
+	if (!policy) {
+		pr_debug("have not policy for transition notify");
+		return;
+	}
+
 	for_each_cpu(freqs->cpu, policy->cpus)
 		__cpufreq_notify_transition(policy, freqs, state);
 }
@@ -955,6 +970,7 @@ static int cpufreq_add_dev(struct device *dev, struct subsys_interface *sif)
 		goto err_out_unregister;
 
 	kobject_uevent(&policy->kobj, KOBJ_ADD);
+	kobject_uevent(&dev->kobj, KOBJ_POLICY_INIT);
 	module_put(cpufreq_driver->owner);
 	pr_debug("initialization complete\n");
 
@@ -1706,7 +1722,8 @@ static int __cpufreq_set_policy(struct cpufreq_policy *data,
 	memcpy(&policy->cpuinfo, &data->cpuinfo,
 				sizeof(struct cpufreq_cpuinfo));
 
-	if (policy->min > data->max || policy->max < data->min) {
+	if ((policy->min > data->max || policy->max < data->min) &&
+		(policy->max < policy->min)) {
 		ret = -EINVAL;
 		goto error_out;
 	}
@@ -1809,10 +1826,17 @@ int cpufreq_update_policy(unsigned int cpu)
 	struct cpufreq_policy *data = cpufreq_cpu_get(cpu);
 	struct cpufreq_policy policy;
 	int ret;
+	int policy_cpu;
 
 	if (!data) {
 		ret = -ENODEV;
 		goto no_policy;
+	}
+
+	policy_cpu = per_cpu(cpufreq_policy_cpu, cpu);
+	if (policy_cpu == -1) {
+		ret = -ENODEV;
+		goto fail;
 	}
 
 	if (unlikely(lock_policy_rwsem_write(cpu))) {

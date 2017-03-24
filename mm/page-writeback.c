@@ -37,6 +37,7 @@
 #include <linux/timer.h>
 #include <linux/sched/rt.h>
 #include <trace/events/writeback.h>
+#include <linux/version.h>
 
 /*
  * Sleep at most 200ms at a time in balance_dirty_pages().
@@ -296,6 +297,14 @@ void global_dirty_limits(unsigned long *pbackground, unsigned long *pdirty)
 		background = DIV_ROUND_UP(dirty_background_bytes, PAGE_SIZE);
 	else
 		background = (dirty_background_ratio * available_memory) / 100;
+
+#if defined(CONFIG_MIN_DIRTY_THRESH_PAGES) && CONFIG_MIN_DIRTY_THRESH_PAGES > 0
+	if (!vm_dirty_bytes && dirty < CONFIG_MIN_DIRTY_THRESH_PAGES) {
+		dirty = CONFIG_MIN_DIRTY_THRESH_PAGES;
+		if (!dirty_background_bytes)
+			background = dirty / 2;
+	}
+#endif
 
 	if (background >= dirty)
 		background = dirty / 2;
@@ -1369,6 +1378,16 @@ pause:
 					  period,
 					  pause,
 					  start_time);
+		/* Just collecting approximate value. No lock required. */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0))
+		bdi->last_thresh = strictlimit ? bdi_thresh : dirty_thresh;
+		bdi->last_nr_dirty = strictlimit ? bdi_dirty : nr_dirty;
+#else
+		bdi->last_thresh = dirty_thresh;
+		bdi->last_nr_dirty = nr_dirty;
+#endif
+		bdi->paused_total += pause;
+
 		__set_current_state(TASK_KILLABLE);
 		io_schedule_timeout(pause);
 

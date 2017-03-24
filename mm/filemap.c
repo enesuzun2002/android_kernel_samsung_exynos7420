@@ -35,6 +35,10 @@
 #include <linux/cleancache.h>
 #include "internal.h"
 
+#ifdef CONFIG_SDP
+#include <sdp/cache_cleanup.h>
+#endif
+
 #define CREATE_TRACE_POINTS
 #include <trace/events/filemap.h>
 
@@ -115,6 +119,11 @@
 void __delete_from_page_cache(struct page *page)
 {
 	struct address_space *mapping = page->mapping;
+
+#ifdef CONFIG_SDP
+	if(mapping_sensitive(mapping))
+		sdp_page_cleanup(page);
+#endif
 
 	trace_mm_filemap_delete_from_page_cache(page);
 	/*
@@ -1109,6 +1118,11 @@ static void do_generic_file_read(struct file *filp, loff_t *ppos,
 	unsigned int prev_offset;
 	int error;
 
+#ifdef CONFIG_SCFS_LOWER_PAGECACHE_INVALIDATION
+	//struct scfs_sb_info *sbi;
+	int is_sequential = (ra->prev_pos == *ppos) ? 1 : 0;
+#endif
+
 	index = *ppos >> PAGE_CACHE_SHIFT;
 	prev_index = ra->prev_pos >> PAGE_CACHE_SHIFT;
 	prev_offset = ra->prev_pos & (PAGE_CACHE_SIZE-1);
@@ -1191,6 +1205,9 @@ page_ok:
 		 * only mark it as accessed the first time.
 		 */
 		if (prev_index != index || offset != prev_offset)
+#ifdef CONFIG_SCFS_LOWER_PAGECACHE_INVALIDATION
+			if (!(filp->f_flags & O_SCFSLOWER))
+#endif
 			mark_page_accessed(page);
 		prev_index = index;
 
@@ -1209,6 +1226,30 @@ page_ok:
 		index += offset >> PAGE_CACHE_SHIFT;
 		offset &= ~PAGE_CACHE_MASK;
 		prev_offset = offset;
+
+#ifdef CONFIG_SCFS_LOWER_PAGECACHE_INVALIDATION
+		if (filp->f_flags & O_SCFSLOWER) {
+			/*
+			   sbi = ;
+
+			   if (!PageScfslower(page) && !PageNocache(page))
+			   sbi->scfs_lowerpage_total_count++;
+			 */
+
+			/* Internal pages except first and last ones ||
+			 * page was sequentially referenced before due to preceding cluster access ||
+			 * first or last pages: random read
+			 */
+			if ((ret == PAGE_CACHE_SIZE) ||
+					(PageScfslower(page) && !offset) || !is_sequential) {
+				SetPageNocache(page);
+
+				if (PageLRU(page))
+					deactivate_page(page);
+			} else
+				SetPageScfslower(page);
+		}
+#endif
 
 		page_cache_release(page);
 		if (ret == nr && desc->count)
@@ -1564,7 +1605,14 @@ static void do_sync_mmap_readahead(struct vm_area_struct *vma,
 	/*
 	 * mmap read-around
 	 */
+#if CONFIG_MMAP_READAROUND_LIMIT == 0
 	ra_pages = max_sane_readahead(ra->ra_pages);
+#else
+	if (ra->ra_pages > CONFIG_MMAP_READAROUND_LIMIT)
+		ra_pages = max_sane_readahead(CONFIG_MMAP_READAROUND_LIMIT);
+	else
+		ra_pages = max_sane_readahead(ra->ra_pages);
+#endif
 	ra->start = max_t(long, 0, offset - ra_pages / 2);
 	ra->size = ra_pages;
 	ra->async_size = ra_pages / 4;

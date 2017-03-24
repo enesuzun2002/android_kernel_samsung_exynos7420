@@ -209,6 +209,7 @@ struct dentry_operations {
 	(DCACHE_MOUNTED|DCACHE_NEED_AUTOMOUNT|DCACHE_MANAGE_TRANSIT)
 
 #define DCACHE_DENTRY_KILLED	0x100000
+#define DCACHE_WILL_INVALIDATE		0x80000000 /* will be invalidated */
 
 extern seqlock_t rename_lock;
 

@@ -30,7 +30,7 @@
  *
  *	Corrupted registers: x0-x7, x9-x11
  */
-ENTRY(__flush_dcache_all)
+__flush_dcache_all:
 	dsb	sy				// ensure ordering with previous memory accesses
 	mrs	x0, clidr_el1			// read clidr
 	and	x3, x0, #0x7000000		// extract loc from clidr
@@ -96,6 +96,26 @@ ENTRY(flush_cache_all)
 	ret	x12
 ENDPROC(flush_cache_all)
 
+ENTRY(__flush_dcache_louis)
+	dmb	ish
+	mrs	x0, clidr_el1
+	ands	x3, x0, #(7 << 21)
+	lsr	x3, x3, #20			// w3 = LoUIS * 2
+	b.eq	level_is_zero
+	mov	x10, #0
+	b	loop1				// start flushing cache
+level_is_zero:
+	ret
+ENDPROC(__flush_dcache_louis)
+
+ENTRY(flush_cache_louis)
+	mov	x12, lr
+	bl	__flush_dcache_louis
+	mov	x0, #0
+	ic	ialluis
+	ret	x12
+ENDPROC(flush_cache_louis)
+
 /*
  *	flush_icache_range(start,end)
  *
@@ -146,23 +166,122 @@ ENDPROC(flush_icache_range)
 ENDPROC(__flush_cache_user_range)
 
 /*
- *	__flush_kern_dcache_page(kaddr)
+ *	__flush_dcache_area(kaddr, size)
  *
- *	Ensure that the data held in the page kaddr is written back to the
- *	page in question.
+ *	Ensure that any D-cache lines for the interval [kaddr, kaddr+size)
+ *	are cleaned and invalidated to the PoC.
  *
  *	- kaddr   - kernel address
  *	- size    - size in question
  */
 ENTRY(__flush_dcache_area)
+	dcache_by_line_op civac, sy, x0, x1, x2, x3
+	ret
+ENDPROC(__flush_dcache_area)
+
+/*
+ *	__clean_dcache_area_pou(kaddr, size)
+ *
+ * 	Ensure that any D-cache lines for the interval [kaddr, kaddr+size)
+ * 	are cleaned to the PoU.
+ *
+ *	- kaddr   - kernel address
+ *	- size    - size in question
+ */
+ENTRY(__clean_dcache_area_pou)
+	dcache_by_line_op cvau, ish, x0, x1, x2, x3
+	ret
+ENDPROC(__clean_dcache_area_pou)
+
+/*
+ *	__inval_cache_range(start, end)
+ *	- start   - start address of region
+ *	- end     - end address of region
+ */
+ENTRY(__inval_cache_range)
+	/* FALLTHROUGH */
+
+/*
+ *	__dma_inv_range(start, end)
+ *	- start   - virtual start address of region
+ *	- end     - virtual end address of region
+ */
+__dma_inv_range:
 	dcache_line_size x2, x3
-	add	x1, x0, x1
+	sub	x3, x2, #1
+	tst	x1, x3				// end cache line aligned?
+	bic	x1, x1, x3
+	b.eq	1f
+	dc	civac, x1			// clean & invalidate D / U line
+1:	tst	x0, x3				// start cache line aligned?
+	bic	x0, x0, x3
+	b.eq	2f
+	dc	civac, x0			// clean & invalidate D / U line
+	b	3f
+2:	dc	ivac, x0			// invalidate D / U line
+3:	add	x0, x0, x2
+	cmp	x0, x1
+	b.lo	2b
+	dsb	sy
+	ret
+ENDPROC(__dma_inv_range)
+
+/*
+ *	__dma_clean_range(start, end)
+ *	- start   - virtual start address of region
+ *	- end     - virtual end address of region
+ */
+__dma_clean_range:
+	dcache_line_size x2, x3
 	sub	x3, x2, #1
 	bic	x0, x0, x3
-1:	dc	civac, x0			// clean & invalidate D line / unified line
+1:	dc	cvac, x0			// clean D / U line
 	add	x0, x0, x2
 	cmp	x0, x1
 	b.lo	1b
 	dsb	sy
 	ret
-ENDPROC(__flush_dcache_area)
+ENDPROC(__dma_clean_range)
+
+/*
+ *	__dma_flush_range(start, end)
+ *	- start   - virtual start address of region
+ *	- end     - virtual end address of region
+ */
+ENTRY(__dma_flush_range)
+	dcache_line_size x2, x3
+	sub	x3, x2, #1
+	bic	x0, x0, x3
+1:	dc	civac, x0			// clean & invalidate D / U line
+	add	x0, x0, x2
+	cmp	x0, x1
+	b.lo	1b
+	dsb	sy
+	ret
+ENDPROC(__dma_flush_range)
+
+/*
+ *	__dma_map_area(start, size, dir)
+ *	- start	- kernel virtual start address
+ *	- size	- size of region
+ *	- dir	- DMA direction
+ */
+ENTRY(__dma_map_area)
+	add	x1, x1, x0
+	cmp	w2, #DMA_FROM_DEVICE
+	b.eq	__dma_inv_range
+	b	__dma_clean_range
+ENDPROC(__dma_map_area)
+
+/*
+ *	__dma_unmap_area(start, size, dir)
+ *	- start	- kernel virtual start address
+ *	- size	- size of region
+ *	- dir	- DMA direction
+ */
+ENTRY(__dma_unmap_area)
+	add	x1, x1, x0
+	cmp	w2, #DMA_TO_DEVICE
+	b.ne	__dma_inv_range
+	ret
+ENDPROC(__dma_unmap_area)

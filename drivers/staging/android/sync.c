@@ -79,12 +79,12 @@ static void sync_timeline_free(struct kref *kref)
 		container_of(kref, struct sync_timeline, kref);
 	unsigned long flags;
 
-	if (obj->ops->release_obj)
-		obj->ops->release_obj(obj);
-
 	spin_lock_irqsave(&sync_timeline_list_lock, flags);
 	list_del(&obj->sync_timeline_list);
 	spin_unlock_irqrestore(&sync_timeline_list_lock, flags);
+
+	if (obj->ops->release_obj)
+		obj->ops->release_obj(obj);
 
 	kfree(obj);
 }
@@ -92,14 +92,14 @@ static void sync_timeline_free(struct kref *kref)
 void sync_timeline_destroy(struct sync_timeline *obj)
 {
 	obj->destroyed = true;
+	smp_wmb();
 
 	/*
-	 * If this is not the last reference, signal any children
-	 * that their parent is going away.
+	 * signal any children that their parent is going away.
 	 */
+	sync_timeline_signal(obj);
 
-	if (!kref_put(&obj->kref, sync_timeline_free))
-		sync_timeline_signal(obj);
+	kref_put(&obj->kref, sync_timeline_free);
 }
 EXPORT_SYMBOL(sync_timeline_destroy);
 
@@ -612,14 +612,14 @@ int sync_fence_wait(struct sync_fence *fence, long timeout)
 		return err;
 
 	if (fence->status < 0) {
-		pr_info("fence error %d on [%p]\n", fence->status, fence);
+		pr_info("fence error %d on [%pK]\n", fence->status, fence);
 		sync_dump();
 		return fence->status;
 	}
 
 	if (fence->status == 0) {
 		if (timeout > 0) {
-			pr_info("fence timeout on [%p] after %dms\n", fence,
+			pr_info("fence timeout on [%pK] after %dms\n", fence,
 				jiffies_to_msecs(timeout));
 			sync_dump();
 		}
@@ -915,7 +915,7 @@ static void sync_print_fence(struct seq_file *s, struct sync_fence *fence)
 	struct list_head *pos;
 	unsigned long flags;
 
-	seq_printf(s, "[%p] %s: %s\n", fence, fence->name,
+	seq_printf(s, "[%pK] %s: %s\n", fence, fence->name,
 		   sync_status_str(fence->status));
 
 	list_for_each(pos, &fence->pt_list_head) {
@@ -995,6 +995,12 @@ void sync_dump(void)
 		.size = sizeof(sync_dump_buf) - 1,
 	};
 	int i;
+	static int is_first_ref = 0;
+
+	if (is_first_ref > 2)
+		return;
+
+	is_first_ref++;
 
 	sync_debugfs_show(&s, NULL);
 

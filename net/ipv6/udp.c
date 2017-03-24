@@ -54,20 +54,17 @@
 
 int ipv6_rcv_saddr_equal(const struct sock *sk, const struct sock *sk2)
 {
-	const struct in6_addr *sk_rcv_saddr6 = &inet6_sk(sk)->rcv_saddr;
 	const struct in6_addr *sk2_rcv_saddr6 = inet6_rcv_saddr(sk2);
-	__be32 sk1_rcv_saddr = sk_rcv_saddr(sk);
-	__be32 sk2_rcv_saddr = sk_rcv_saddr(sk2);
 	int sk_ipv6only = ipv6_only_sock(sk);
 	int sk2_ipv6only = inet_v6_ipv6only(sk2);
-	int addr_type = ipv6_addr_type(sk_rcv_saddr6);
+	int addr_type = ipv6_addr_type(&sk->sk_v6_rcv_saddr);
 	int addr_type2 = sk2_rcv_saddr6 ? ipv6_addr_type(sk2_rcv_saddr6) : IPV6_ADDR_MAPPED;
 
 	/* if both are mapped, treat as IPv4 */
 	if (addr_type == IPV6_ADDR_MAPPED && addr_type2 == IPV6_ADDR_MAPPED)
 		return (!sk2_ipv6only &&
-			(!sk1_rcv_saddr || !sk2_rcv_saddr ||
-			  sk1_rcv_saddr == sk2_rcv_saddr));
+			(!sk->sk_rcv_saddr || !sk2->sk_rcv_saddr ||
+			  sk->sk_rcv_saddr == sk2->sk_rcv_saddr));
 
 	if (addr_type2 == IPV6_ADDR_ANY &&
 	    !(sk2_ipv6only && addr_type == IPV6_ADDR_MAPPED))
@@ -78,7 +75,7 @@ int ipv6_rcv_saddr_equal(const struct sock *sk, const struct sock *sk2)
 		return 1;
 
 	if (sk2_rcv_saddr6 &&
-	    ipv6_addr_equal(sk_rcv_saddr6, sk2_rcv_saddr6))
+	    ipv6_addr_equal(&sk->sk_v6_rcv_saddr, sk2_rcv_saddr6))
 		return 1;
 
 	return 0;
@@ -106,7 +103,7 @@ int udp_v6_get_port(struct sock *sk, unsigned short snum)
 	unsigned int hash2_nulladdr =
 		udp6_portaddr_hash(sock_net(sk), &in6addr_any, snum);
 	unsigned int hash2_partial =
-		udp6_portaddr_hash(sock_net(sk), &inet6_sk(sk)->rcv_saddr, 0);
+		udp6_portaddr_hash(sock_net(sk), &sk->sk_v6_rcv_saddr, 0);
 
 	/* precompute partial secondary hash */
 	udp_sk(sk)->udp_portaddr_hash = hash2_partial;
@@ -116,7 +113,7 @@ int udp_v6_get_port(struct sock *sk, unsigned short snum)
 static void udp_v6_rehash(struct sock *sk)
 {
 	u16 new_hash = udp6_portaddr_hash(sock_net(sk),
-					  &inet6_sk(sk)->rcv_saddr,
+					  &sk->sk_v6_rcv_saddr,
 					  inet_sk(sk)->inet_num);
 
 	udp_lib_rehash(sk, new_hash);
@@ -132,7 +129,6 @@ static inline int compute_score(struct sock *sk, struct net *net,
 
 	if (net_eq(sock_net(sk), net) && udp_sk(sk)->udp_port_hash == hnum &&
 			sk->sk_family == PF_INET6) {
-		struct ipv6_pinfo *np = inet6_sk(sk);
 		struct inet_sock *inet = inet_sk(sk);
 
 		score = 0;
@@ -141,13 +137,13 @@ static inline int compute_score(struct sock *sk, struct net *net,
 				return -1;
 			score++;
 		}
-		if (!ipv6_addr_any(&np->rcv_saddr)) {
-			if (!ipv6_addr_equal(&np->rcv_saddr, daddr))
+		if (!ipv6_addr_any(&sk->sk_v6_rcv_saddr)) {
+			if (!ipv6_addr_equal(&sk->sk_v6_rcv_saddr, daddr))
 				return -1;
 			score++;
 		}
-		if (!ipv6_addr_any(&np->daddr)) {
-			if (!ipv6_addr_equal(&np->daddr, saddr))
+		if (!ipv6_addr_any(&sk->sk_v6_daddr)) {
+			if (!ipv6_addr_equal(&sk->sk_v6_daddr, saddr))
 				return -1;
 			score++;
 		}
@@ -170,10 +166,9 @@ static inline int compute_score2(struct sock *sk, struct net *net,
 
 	if (net_eq(sock_net(sk), net) && udp_sk(sk)->udp_port_hash == hnum &&
 			sk->sk_family == PF_INET6) {
-		struct ipv6_pinfo *np = inet6_sk(sk);
 		struct inet_sock *inet = inet_sk(sk);
 
-		if (!ipv6_addr_equal(&np->rcv_saddr, daddr))
+		if (!ipv6_addr_equal(&sk->sk_v6_rcv_saddr, daddr))
 			return -1;
 		score = 0;
 		if (inet->inet_dport) {
@@ -181,8 +176,8 @@ static inline int compute_score2(struct sock *sk, struct net *net,
 				return -1;
 			score++;
 		}
-		if (!ipv6_addr_any(&np->daddr)) {
-			if (!ipv6_addr_equal(&np->daddr, saddr))
+		if (!ipv6_addr_any(&sk->sk_v6_daddr)) {
+			if (!ipv6_addr_equal(&sk->sk_v6_daddr, saddr))
 				return -1;
 			score++;
 		}
@@ -409,7 +404,8 @@ try_again:
 		err = skb_copy_datagram_iovec(skb, sizeof(struct udphdr),
 					      msg->msg_iov, copied);
 	else {
-		err = skb_copy_and_csum_datagram_iovec(skb, sizeof(struct udphdr), msg->msg_iov);
+		err = skb_copy_and_csum_datagram_iovec(skb, sizeof(struct udphdr),
+						       msg->msg_iov, copied);
 		if (err == -EINVAL)
 			goto csum_copy_err;
 	}
@@ -494,10 +490,8 @@ csum_copy_err:
 	}
 	unlock_sock_fast(sk, slow);
 
-	if (noblock)
-		return -EAGAIN;
-
-	/* starting over for a new packet */
+	/* starting over for a new packet, but check if we need to yield */
+	cond_resched();
 	msg->msg_flags &= ~MSG_TRUNC;
 	goto try_again;
 }
@@ -545,7 +539,7 @@ static int __udpv6_queue_rcv_skb(struct sock *sk, struct sk_buff *skb)
 {
 	int rc;
 
-	if (!ipv6_addr_any(&inet6_sk(sk)->daddr))
+	if (!ipv6_addr_any(&sk->sk_v6_daddr))
 		sock_rps_save_rxhash(sk, skb);
 
 	rc = sock_queue_rcv_skb(sk, skb);
@@ -684,20 +678,19 @@ static struct sock *udp_v6_mcast_next(struct net *net, struct sock *sk,
 
 		if (udp_sk(s)->udp_port_hash == num &&
 		    s->sk_family == PF_INET6) {
-			struct ipv6_pinfo *np = inet6_sk(s);
 			if (inet->inet_dport) {
 				if (inet->inet_dport != rmt_port)
 					continue;
 			}
-			if (!ipv6_addr_any(&np->daddr) &&
-			    !ipv6_addr_equal(&np->daddr, rmt_addr))
+			if (!ipv6_addr_any(&sk->sk_v6_daddr) &&
+			    !ipv6_addr_equal(&sk->sk_v6_daddr, rmt_addr))
 				continue;
 
 			if (s->sk_bound_dev_if && s->sk_bound_dev_if != dif)
 				continue;
 
-			if (!ipv6_addr_any(&np->rcv_saddr)) {
-				if (!ipv6_addr_equal(&np->rcv_saddr, loc_addr))
+			if (!ipv6_addr_any(&sk->sk_v6_rcv_saddr)) {
+				if (!ipv6_addr_equal(&sk->sk_v6_rcv_saddr, loc_addr))
 					continue;
 			}
 			if (!inet6_mc_check(s, loc_addr, rmt_addr))
@@ -1017,6 +1010,7 @@ int udpv6_sendmsg(struct kiocb *iocb, struct sock *sk,
 	struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *) msg->msg_name;
 	struct in6_addr *daddr, *final_p, final;
 	struct ipv6_txoptions *opt = NULL;
+	struct ipv6_txoptions *opt_to_free = NULL;
 	struct ip6_flowlabel *flowlabel = NULL;
 	struct flowi6 fl6;
 	struct dst_entry *dst;
@@ -1055,7 +1049,7 @@ int udpv6_sendmsg(struct kiocb *iocb, struct sock *sk,
 	} else if (!up->pending) {
 		if (sk->sk_state != TCP_ESTABLISHED)
 			return -EDESTADDRREQ;
-		daddr = &np->daddr;
+		daddr = &sk->sk_v6_daddr;
 	} else
 		daddr = NULL;
 
@@ -1125,8 +1119,8 @@ do_udp_sendmsg:
 		 * sk->sk_dst_cache.
 		 */
 		if (sk->sk_state == TCP_ESTABLISHED &&
-		    ipv6_addr_equal(daddr, &np->daddr))
-			daddr = &np->daddr;
+		    ipv6_addr_equal(daddr, &sk->sk_v6_daddr))
+			daddr = &sk->sk_v6_daddr;
 
 		if (addr_len >= sizeof(struct sockaddr_in6) &&
 		    sin6->sin6_scope_id &&
@@ -1137,7 +1131,7 @@ do_udp_sendmsg:
 			return -EDESTADDRREQ;
 
 		fl6.fl6_dport = inet->inet_dport;
-		daddr = &np->daddr;
+		daddr = &sk->sk_v6_daddr;
 		fl6.flowlabel = np->flow_label;
 		connected = 1;
 	}
@@ -1149,6 +1143,7 @@ do_udp_sendmsg:
 		fl6.flowi6_oif = np->sticky_pktinfo.ipi6_ifindex;
 
 	fl6.flowi6_mark = sk->sk_mark;
+	fl6.flowi6_uid = sock_i_uid(sk);
 
 	if (msg->msg_controllen) {
 		opt = &opt_space;
@@ -1170,8 +1165,10 @@ do_udp_sendmsg:
 			opt = NULL;
 		connected = 0;
 	}
-	if (opt == NULL)
-		opt = np->opt;
+	if (!opt) {
+		opt = txopt_get(np);
+		opt_to_free = opt;
+	}
 	if (flowlabel)
 		opt = fl6_merge_options(&opt_space, flowlabel, opt);
 	opt = ipv6_fixup_options(&opt_space, opt);
@@ -1253,8 +1250,8 @@ do_append_data:
 	if (dst) {
 		if (connected) {
 			ip6_dst_store(sk, dst,
-				      ipv6_addr_equal(&fl6.daddr, &np->daddr) ?
-				      &np->daddr : NULL,
+				      ipv6_addr_equal(&fl6.daddr, &sk->sk_v6_daddr) ?
+				      &sk->sk_v6_daddr : NULL,
 #ifdef CONFIG_IPV6_SUBTREES
 				      ipv6_addr_equal(&fl6.saddr, &np->saddr) ?
 				      &np->saddr :
@@ -1272,6 +1269,7 @@ do_append_data:
 out:
 	dst_release(dst);
 	fl6_sock_release(flowlabel);
+	txopt_put(opt_to_free);
 	if (!err)
 		return len;
 	/*
@@ -1361,48 +1359,17 @@ static const struct inet6_protocol udpv6_protocol = {
 
 /* ------------------------------------------------------------------------ */
 #ifdef CONFIG_PROC_FS
-
-static void udp6_sock_seq_show(struct seq_file *seq, struct sock *sp, int bucket)
-{
-	struct inet_sock *inet = inet_sk(sp);
-	struct ipv6_pinfo *np = inet6_sk(sp);
-	const struct in6_addr *dest, *src;
-	__u16 destp, srcp;
-
-	dest  = &np->daddr;
-	src   = &np->rcv_saddr;
-	destp = ntohs(inet->inet_dport);
-	srcp  = ntohs(inet->inet_sport);
-	seq_printf(seq,
-		   "%5d: %08X%08X%08X%08X:%04X %08X%08X%08X%08X:%04X "
-		   "%02X %08X:%08X %02X:%08lX %08X %5d %8d %lu %d %pK %d\n",
-		   bucket,
-		   src->s6_addr32[0], src->s6_addr32[1],
-		   src->s6_addr32[2], src->s6_addr32[3], srcp,
-		   dest->s6_addr32[0], dest->s6_addr32[1],
-		   dest->s6_addr32[2], dest->s6_addr32[3], destp,
-		   sp->sk_state,
-		   sk_wmem_alloc_get(sp),
-		   sk_rmem_alloc_get(sp),
-		   0, 0L, 0,
-		   from_kuid_munged(seq_user_ns(seq), sock_i_uid(sp)),
-		   0,
-		   sock_i_ino(sp),
-		   atomic_read(&sp->sk_refcnt), sp,
-		   atomic_read(&sp->sk_drops));
-}
-
 int udp6_seq_show(struct seq_file *seq, void *v)
 {
-	if (v == SEQ_START_TOKEN)
-		seq_printf(seq,
-			   "  sl  "
-			   "local_address                         "
-			   "remote_address                        "
-			   "st tx_queue rx_queue tr tm->when retrnsmt"
-			   "   uid  timeout inode ref pointer drops\n");
-	else
-		udp6_sock_seq_show(seq, v, ((struct udp_iter_state *)seq->private)->bucket);
+	if (v == SEQ_START_TOKEN) {
+		seq_puts(seq, IPV6_SEQ_DGRAM_HEADER);
+	} else {
+		int bucket = ((struct udp_iter_state *)seq->private)->bucket;
+		struct inet_sock *inet = inet_sk(v);
+		__u16 srcp = ntohs(inet->inet_sport);
+		__u16 destp = ntohs(inet->inet_dport);
+		ip6_dgram_sock_seq_show(seq, v, srcp, destp, bucket);
+	}
 	return 0;
 }
 

@@ -37,6 +37,9 @@
 #include <asm/irq.h>
 #include <asm/uaccess.h>
 
+#if defined(CONFIG_BT_BCM4339) || defined(CONFIG_BT_BCM4354) || defined(CONFIG_BT_BCM43455) || defined(CONFIG_BT_BCM4358) || defined(CONFIG_BT_BCM4359) /* This is just temporary features*/
+#define BT4339_LINE 4
+#endif
 /*
  * This is used to lock changes in serial line configuration.
  */
@@ -94,6 +97,9 @@ static void __uart_start(struct tty_struct *tty)
 {
 	struct uart_state *state = tty->driver_data;
 	struct uart_port *port = state->uart_port;
+
+	if (port->ops->wake_peer)
+		port->ops->wake_peer(port);
 
 	if (!uart_circ_empty(&state->xmit) && state->xmit.buf &&
 	    !tty->stopped && !tty->hw_stopped)
@@ -180,7 +186,12 @@ static int uart_port_startup(struct tty_struct *tty, struct uart_state *state,
 		if (tty_port_cts_enabled(port)) {
 			spin_lock_irq(&uport->lock);
 			if (!(uport->ops->get_mctrl(uport) & TIOCM_CTS))
+#if defined(CONFIG_BT_BCM4339) || defined(CONFIG_BT_BCM4354) || defined(CONFIG_BT_BCM43455) || defined(CONFIG_BT_BCM4358) || defined(CONFIG_BT_BCM4359)
+				if (uport->line != BT4339_LINE)
 				tty->hw_stopped = 1;
+#else
+				tty->hw_stopped = 1;
+#endif
 			spin_unlock_irq(&uport->lock);
 		}
 	}
@@ -1302,7 +1313,12 @@ static void uart_set_termios(struct tty_struct *tty,
 	else if (!(old_termios->c_cflag & CRTSCTS) && (cflag & CRTSCTS)) {
 		spin_lock_irqsave(&uport->lock, flags);
 		if (!(uport->ops->get_mctrl(uport) & TIOCM_CTS)) {
+#if defined(CONFIG_BT_BCM4339) || defined(CONFIG_BT_BCM4354) || defined(CONFIG_BT_BCM43455) || defined(CONFIG_BT_BCM4358) || defined(CONFIG_BT_BCM4359)
+			if (uport->line != BT4339_LINE)
+				tty->hw_stopped = 1;
+#else
 			tty->hw_stopped = 1;
+#endif
 			uport->ops->stop_tx(uport);
 		}
 		spin_unlock_irqrestore(&uport->lock, flags);
@@ -1839,9 +1855,13 @@ uart_set_options(struct uart_port *port, struct console *co,
 	/*
 	 * Ensure that the serial console lock is initialised
 	 * early.
+	 * If this port is a console, then the spinlock is already
+	 * initialised.
 	 */
-	spin_lock_init(&port->lock);
-	lockdep_set_class(&port->lock, &port_lock_key);
+	if (!(uart_console(port) && (port->cons->flags & CON_ENABLED))) {
+		spin_lock_init(&port->lock);
+		lockdep_set_class(&port->lock, &port_lock_key);
+	}
 
 	memset(&termios, 0, sizeof(struct ktermios));
 
@@ -2680,6 +2700,12 @@ int uart_remove_one_port(struct uart_driver *drv, struct uart_port *uport)
 
 	if (port->tty)
 		tty_vhangup(port->tty);
+
+	/*
+	 * If the port is used as a console, unregister it
+	 */
+	if (uart_console(uport))
+		unregister_console(uport->cons);
 
 	/*
 	 * Free the port IO and memory resources, if any.

@@ -92,9 +92,10 @@ static int context_struct_to_string(struct context *context, char **scontext,
 				    u32 *scontext_len);
 
 static void context_struct_compute_av(struct context *scontext,
-				      struct context *tcontext,
-				      u16 tclass,
-				      struct av_decision *avd);
+					struct context *tcontext,
+					u16 tclass,
+					struct av_decision *avd,
+					struct extended_perms *xperms);
 
 struct selinux_mapping {
 	u16 value; /* policy value */
@@ -564,7 +565,8 @@ static void type_attribute_bounds_av(struct context *scontext,
 		context_struct_compute_av(&lo_scontext,
 					  tcontext,
 					  tclass,
-					  &lo_avd);
+					  &lo_avd,
+					  NULL);
 		if ((lo_avd.allowed & avd->allowed) == avd->allowed)
 			return;		/* no masked permission */
 		masked = ~lo_avd.allowed & avd->allowed;
@@ -579,7 +581,8 @@ static void type_attribute_bounds_av(struct context *scontext,
 		context_struct_compute_av(scontext,
 					  &lo_tcontext,
 					  tclass,
-					  &lo_avd);
+					  &lo_avd,
+					  NULL);
 		if ((lo_avd.allowed & avd->allowed) == avd->allowed)
 			return;		/* no masked permission */
 		masked = ~lo_avd.allowed & avd->allowed;
@@ -595,7 +598,8 @@ static void type_attribute_bounds_av(struct context *scontext,
 		context_struct_compute_av(&lo_scontext,
 					  &lo_tcontext,
 					  tclass,
-					  &lo_avd);
+					  &lo_avd,
+					  NULL);
 		if ((lo_avd.allowed & avd->allowed) == avd->allowed)
 			return;		/* no masked permission */
 		masked = ~lo_avd.allowed & avd->allowed;
@@ -612,13 +616,39 @@ static void type_attribute_bounds_av(struct context *scontext,
 }
 
 /*
- * Compute access vectors based on a context structure pair for
- * the permissions in a particular class.
+ * flag which drivers have permissions
+ * only looking for ioctl based extended permssions
+ */
+void services_compute_xperms_drivers(
+		struct extended_perms *xperms,
+		struct avtab_node *node)
+{
+	unsigned int i;
+
+	if (node->datum.u.xperms->specified == AVTAB_XPERMS_IOCTLDRIVER) {
+		/* if one or more driver has all permissions allowed */
+		for (i = 0; i < ARRAY_SIZE(xperms->drivers.p); i++)
+			xperms->drivers.p[i] |= node->datum.u.xperms->perms.p[i];
+	} else if (node->datum.u.xperms->specified == AVTAB_XPERMS_IOCTLFUNCTION) {
+		/* if allowing permissions within a driver */
+		security_xperm_set(xperms->drivers.p,
+					node->datum.u.xperms->driver);
+	}
+
+	/* If no ioctl commands are allowed, ignore auditallow and auditdeny */
+	if (node->key.specified & AVTAB_XPERMS_ALLOWED)
+		xperms->len = 1;
+}
+
+/*
+ * Compute access vectors and extended permissions based on a context
+ * structure pair for the permissions in a particular class.
  */
 static void context_struct_compute_av(struct context *scontext,
-				      struct context *tcontext,
-				      u16 tclass,
-				      struct av_decision *avd)
+					struct context *tcontext,
+					u16 tclass,
+					struct av_decision *avd,
+					struct extended_perms *xperms)
 {
 	struct constraint_node *constraint;
 	struct role_allow *ra;
@@ -632,6 +662,10 @@ static void context_struct_compute_av(struct context *scontext,
 	avd->allowed = 0;
 	avd->auditallow = 0;
 	avd->auditdeny = 0xffffffff;
+	if (xperms) {
+		memset(&xperms->drivers, 0, sizeof(xperms->drivers));
+		xperms->len = 0;
+	}
 
 	if (unlikely(!tclass || tclass > policydb.p_classes.nprim)) {
 		if (printk_ratelimit())
@@ -646,7 +680,7 @@ static void context_struct_compute_av(struct context *scontext,
 	 * this permission check, then use it.
 	 */
 	avkey.target_class = tclass;
-	avkey.specified = AVTAB_AV;
+	avkey.specified = AVTAB_AV | AVTAB_XPERMS;
 	sattr = flex_array_get(policydb.type_attr_map_array, scontext->type - 1);
 	BUG_ON(!sattr);
 	tattr = flex_array_get(policydb.type_attr_map_array, tcontext->type - 1);
@@ -659,15 +693,18 @@ static void context_struct_compute_av(struct context *scontext,
 			     node;
 			     node = avtab_search_node_next(node, avkey.specified)) {
 				if (node->key.specified == AVTAB_ALLOWED)
-					avd->allowed |= node->datum.data;
+					avd->allowed |= node->datum.u.data;
 				else if (node->key.specified == AVTAB_AUDITALLOW)
-					avd->auditallow |= node->datum.data;
+					avd->auditallow |= node->datum.u.data;
 				else if (node->key.specified == AVTAB_AUDITDENY)
-					avd->auditdeny &= node->datum.data;
+					avd->auditdeny &= node->datum.u.data;
+				else if (xperms && (node->key.specified & AVTAB_XPERMS))
+					services_compute_xperms_drivers(xperms, node);
 			}
 
 			/* Check conditional av table for additional permissions */
-			cond_compute_av(&policydb.te_cond_avtab, &avkey, avd);
+			cond_compute_av(&policydb.te_cond_avtab, &avkey,
+					avd, xperms);
 
 		}
 	}
@@ -735,6 +772,9 @@ out:
 	kfree(n);
 	kfree(t);
 
+#ifdef CONFIG_ALWAYS_ENFORCE
+	selinux_enforcing = 1;
+#endif
 	if (!selinux_enforcing)
 		return 0;
 	return -EPERM;
@@ -898,6 +938,139 @@ static void avd_init(struct av_decision *avd)
 	avd->flags = 0;
 }
 
+void services_compute_xperms_decision(struct extended_perms_decision *xpermd,
+					struct avtab_node *node)
+{
+	unsigned int i;
+
+	if (node->datum.u.xperms->specified == AVTAB_XPERMS_IOCTLFUNCTION) {
+		if (xpermd->driver != node->datum.u.xperms->driver)
+			return;
+	} else if (node->datum.u.xperms->specified == AVTAB_XPERMS_IOCTLDRIVER) {
+		if (!security_xperm_test(node->datum.u.xperms->perms.p,
+					xpermd->driver))
+			return;
+	} else {
+		BUG();
+	}
+
+	if (node->key.specified == AVTAB_XPERMS_ALLOWED) {
+		xpermd->used |= XPERMS_ALLOWED;
+		if (node->datum.u.xperms->specified == AVTAB_XPERMS_IOCTLDRIVER) {
+			memset(xpermd->allowed->p, 0xff,
+					sizeof(xpermd->allowed->p));
+		}
+		if (node->datum.u.xperms->specified == AVTAB_XPERMS_IOCTLFUNCTION) {
+			for (i = 0; i < ARRAY_SIZE(xpermd->allowed->p); i++)
+				xpermd->allowed->p[i] |=
+					node->datum.u.xperms->perms.p[i];
+		}
+	} else if (node->key.specified == AVTAB_XPERMS_AUDITALLOW) {
+		xpermd->used |= XPERMS_AUDITALLOW;
+		if (node->datum.u.xperms->specified == AVTAB_XPERMS_IOCTLDRIVER) {
+			memset(xpermd->auditallow->p, 0xff,
+					sizeof(xpermd->auditallow->p));
+		}
+		if (node->datum.u.xperms->specified == AVTAB_XPERMS_IOCTLFUNCTION) {
+			for (i = 0; i < ARRAY_SIZE(xpermd->auditallow->p); i++)
+				xpermd->auditallow->p[i] |=
+					node->datum.u.xperms->perms.p[i];
+		}
+	} else if (node->key.specified == AVTAB_XPERMS_DONTAUDIT) {
+		xpermd->used |= XPERMS_DONTAUDIT;
+		if (node->datum.u.xperms->specified == AVTAB_XPERMS_IOCTLDRIVER) {
+			memset(xpermd->dontaudit->p, 0xff,
+					sizeof(xpermd->dontaudit->p));
+		}
+		if (node->datum.u.xperms->specified == AVTAB_XPERMS_IOCTLFUNCTION) {
+			for (i = 0; i < ARRAY_SIZE(xpermd->dontaudit->p); i++)
+				xpermd->dontaudit->p[i] |=
+					node->datum.u.xperms->perms.p[i];
+		}
+	} else {
+		BUG();
+	}
+}
+
+void security_compute_xperms_decision(u32 ssid,
+				u32 tsid,
+				u16 orig_tclass,
+				u8 driver,
+				struct extended_perms_decision *xpermd)
+{
+	u16 tclass;
+	struct context *scontext, *tcontext;
+	struct avtab_key avkey;
+	struct avtab_node *node;
+	struct ebitmap *sattr, *tattr;
+	struct ebitmap_node *snode, *tnode;
+	unsigned int i, j;
+
+	xpermd->driver = driver;
+	xpermd->used = 0;
+	memset(xpermd->allowed->p, 0, sizeof(xpermd->allowed->p));
+	memset(xpermd->auditallow->p, 0, sizeof(xpermd->auditallow->p));
+	memset(xpermd->dontaudit->p, 0, sizeof(xpermd->dontaudit->p));
+
+	read_lock(&policy_rwlock);
+	if (!ss_initialized)
+		goto allow;
+
+	scontext = sidtab_search(&sidtab, ssid);
+	if (!scontext) {
+		printk(KERN_ERR "SELinux: %s:  unrecognized SID %d\n",
+		       __func__, ssid);
+		goto out;
+	}
+
+	tcontext = sidtab_search(&sidtab, tsid);
+	if (!tcontext) {
+		printk(KERN_ERR "SELinux: %s:  unrecognized SID %d\n",
+		       __func__, tsid);
+		goto out;
+	}
+
+	tclass = unmap_class(orig_tclass);
+	if (unlikely(orig_tclass && !tclass)) {
+		if (policydb.allow_unknown)
+			goto allow;
+		goto out;
+	}
+
+
+	if (unlikely(!tclass || tclass > policydb.p_classes.nprim)) {
+		pr_warn_ratelimited("SELinux:  Invalid class %hu\n", tclass);
+		goto out;
+	}
+
+	avkey.target_class = tclass;
+	avkey.specified = AVTAB_XPERMS;
+	sattr = flex_array_get(policydb.type_attr_map_array,
+				scontext->type - 1);
+	BUG_ON(!sattr);
+	tattr = flex_array_get(policydb.type_attr_map_array,
+				tcontext->type - 1);
+	BUG_ON(!tattr);
+	ebitmap_for_each_positive_bit(sattr, snode, i) {
+		ebitmap_for_each_positive_bit(tattr, tnode, j) {
+			avkey.source_type = i + 1;
+			avkey.target_type = j + 1;
+			for (node = avtab_search_node(&policydb.te_avtab, &avkey);
+			     node;
+			     node = avtab_search_node_next(node, avkey.specified))
+				services_compute_xperms_decision(xpermd, node);
+
+			cond_compute_xperms(&policydb.te_cond_avtab,
+						&avkey, xpermd);
+		}
+	}
+out:
+	read_unlock(&policy_rwlock);
+	return;
+allow:
+	memset(xpermd->allowed->p, 0xff, sizeof(xpermd->allowed->p));
+	goto out;
+}
 
 /**
  * security_compute_av - Compute access vector decisions.
@@ -905,6 +1078,7 @@ static void avd_init(struct av_decision *avd)
  * @tsid: target security identifier
  * @tclass: target security class
  * @avd: access vector decisions
+ * @xperms: extended permissions
  *
  * Compute a set of access vector decisions based on the
  * SID pair (@ssid, @tsid) for the permissions in @tclass.
@@ -912,13 +1086,15 @@ static void avd_init(struct av_decision *avd)
 void security_compute_av(u32 ssid,
 			 u32 tsid,
 			 u16 orig_tclass,
-			 struct av_decision *avd)
+			 struct av_decision *avd,
+			 struct extended_perms *xperms)
 {
 	u16 tclass;
 	struct context *scontext = NULL, *tcontext = NULL;
 
 	read_lock(&policy_rwlock);
 	avd_init(avd);
+	xperms->len = 0;
 	if (!ss_initialized)
 		goto allow;
 
@@ -946,7 +1122,7 @@ void security_compute_av(u32 ssid,
 			goto allow;
 		goto out;
 	}
-	context_struct_compute_av(scontext, tcontext, tclass, avd);
+	context_struct_compute_av(scontext, tcontext, tclass, avd, xperms);
 	map_decision(orig_tclass, avd, policydb.allow_unknown);
 out:
 	read_unlock(&policy_rwlock);
@@ -992,7 +1168,7 @@ void security_compute_av_user(u32 ssid,
 		goto out;
 	}
 
-	context_struct_compute_av(scontext, tcontext, tclass, avd);
+	context_struct_compute_av(scontext, tcontext, tclass, avd, NULL);
  out:
 	read_unlock(&policy_rwlock);
 	return;
@@ -1357,6 +1533,9 @@ out:
 	kfree(s);
 	kfree(t);
 	kfree(n);
+#ifdef CONFIG_ALWAYS_ENFORCE
+	selinux_enforcing = 1;
+#endif
 	if (!selinux_enforcing)
 		return 0;
 	return -EACCES;
@@ -1512,7 +1691,7 @@ static int security_compute_sid(u32 ssid,
 
 	if (avdatum) {
 		/* Use the type from the type transition/member/change rule. */
-		newcontext.type = avdatum->data;
+		newcontext.type = avdatum->u.data;
 	}
 
 	/* if we have a objname this is a file trans check so check those rules */
@@ -1647,7 +1826,9 @@ static inline int convert_context_handle_invalid_context(struct context *context
 {
 	char *s;
 	u32 len;
-
+#ifdef CONFIG_ALWAYS_ENFORCE
+	selinux_enforcing = 1;
+#endif
 	if (selinux_enforcing)
 		return -EINVAL;
 
@@ -2262,7 +2443,7 @@ out:
 }
 
 /**
- * security_genfs_sid - Obtain a SID for a file in a filesystem
+ * __security_genfs_sid - Helper to obtain a SID for a file in a filesystem
  * @fstype: filesystem type
  * @path: path from root of mount
  * @sclass: file security class
@@ -2271,11 +2452,13 @@ out:
  * Obtain a SID to use for a file in a filesystem that
  * cannot support xattr or use a fixed labeling behavior like
  * transition SIDs or task SIDs.
+ *
+ * The caller must acquire the policy_rwlock before calling this function.
  */
-int security_genfs_sid(const char *fstype,
-		       char *path,
-		       u16 orig_sclass,
-		       u32 *sid)
+static inline int __security_genfs_sid(const char *fstype,
+				       char *path,
+				       u16 orig_sclass,
+				       u32 *sid)
 {
 	int len;
 	u16 sclass;
@@ -2285,8 +2468,6 @@ int security_genfs_sid(const char *fstype,
 
 	while (path[0] == '/' && path[1] == '/')
 		path++;
-
-	read_lock(&policy_rwlock);
 
 	sclass = unmap_class(orig_sclass);
 	*sid = SECINITSID_UNLABELED;
@@ -2321,8 +2502,30 @@ int security_genfs_sid(const char *fstype,
 	*sid = c->sid[0];
 	rc = 0;
 out:
-	read_unlock(&policy_rwlock);
 	return rc;
+}
+
+/**
+ * security_genfs_sid - Obtain a SID for a file in a filesystem
+ * @fstype: filesystem type
+ * @path: path from root of mount
+ * @sclass: file security class
+ * @sid: SID for path
+ *
+ * Acquire policy_rwlock before calling __security_genfs_sid() and release
+ * it afterward.
+ */
+int security_genfs_sid(const char *fstype,
+		       char *path,
+		       u16 orig_sclass,
+		       u32 *sid)
+{
+	int retval;
+
+	read_lock(&policy_rwlock);
+	retval = __security_genfs_sid(fstype, path, orig_sclass, sid);
+	read_unlock(&policy_rwlock);
+	return retval;
 }
 
 /**
@@ -2338,6 +2541,7 @@ int security_fs_use(
 {
 	int rc = 0;
 	struct ocontext *c;
+	u32 tmpsid;
 
 	read_lock(&policy_rwlock);
 
@@ -2352,13 +2556,15 @@ int security_fs_use(
 		*behavior = c->v.behavior;
 		if (!c->sid[0]) {
 			rc = sidtab_context_to_sid(&sidtab, &c->context[0],
-						   &c->sid[0]);
+						   &tmpsid);
+			c->sid[0] = tmpsid;
 			if (rc)
 				goto out;
 		}
 		*sid = c->sid[0];
 	} else {
-		rc = security_genfs_sid(fstype, "/", SECCLASS_DIR, sid);
+		rc = __security_genfs_sid(fstype, "/", SECCLASS_DIR,
+					sid);
 		if (rc) {
 			*behavior = SECURITY_FS_USE_NONE;
 			rc = 0;
@@ -2822,6 +3028,10 @@ int selinux_audit_rule_init(u32 field, u32 op, char *rulestr, void **vrule)
 	struct selinux_audit_rule **rule = (struct selinux_audit_rule **)vrule;
 	int rc = 0;
 
+#ifdef CONFIG_RKP_KDP
+	if ((rc = security_integrity_current()))
+		return rc;
+#endif
 	*rule = NULL;
 
 	if (!ss_initialized)
@@ -2913,6 +3123,12 @@ out:
 int selinux_audit_rule_known(struct audit_krule *rule)
 {
 	int i;
+#ifdef CONFIG_RKP_KDP
+	int rc;
+
+	if ((rc = security_integrity_current()))
+		return rc;
+#endif
 
 	for (i = 0; i < rule->field_count; i++) {
 		struct audit_field *f = &rule->fields[i];
@@ -2941,6 +3157,12 @@ int selinux_audit_rule_match(u32 sid, u32 field, u32 op, void *vrule,
 	struct mls_level *level;
 	struct selinux_audit_rule *rule = vrule;
 	int match = 0;
+#ifdef CONFIG_RKP_KDP
+	int rc;
+
+	if ((rc = security_integrity_current()))
+		return rc;
+#endif
 
 	if (!rule) {
 		audit_log(actx, GFP_ATOMIC, AUDIT_SELINUX_ERR,

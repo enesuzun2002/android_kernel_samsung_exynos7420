@@ -685,6 +685,8 @@ struct v4l2_buffer {
 #define V4L2_BUF_FLAG_TIMESTAMP_UNKNOWN		0x0000
 #define V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC	0x2000
 #define V4L2_BUF_FLAG_TIMESTAMP_COPY		0x4000
+/* Expects and returns a sync fence */
+#define V4L2_BUF_FLAG_USE_SYNC	0x8000
 
 /**
  * struct v4l2_exportbuffer - export of video buffer as DMABUF file descriptor
@@ -961,6 +963,58 @@ struct v4l2_standard {
 };
 
 /*
+ *	D V		P R E S E T		V A L U E S
+ */
+#define		V4L2_DV_INVALID		0
+#define		V4L2_DV_480P59_94	1 /* BT.1362 */
+#define		V4L2_DV_576P50		2 /* BT.1362 */
+#define		V4L2_DV_720P24		3 /* SMPTE 296M */
+#define		V4L2_DV_720P25		4 /* SMPTE 296M */
+#define		V4L2_DV_720P30		5 /* SMPTE 296M */
+#define		V4L2_DV_720P50		6 /* SMPTE 296M */
+#define		V4L2_DV_720P59_94	7 /* SMPTE 274M */
+#define		V4L2_DV_720P60		8 /* SMPTE 274M/296M */
+#define		V4L2_DV_1080I29_97	9 /* BT.1120/ SMPTE 274M */
+#define		V4L2_DV_1080I30		10 /* BT.1120/ SMPTE 274M */
+#define		V4L2_DV_1080I25		11 /* BT.1120 */
+#define		V4L2_DV_1080I50		12 /* SMPTE 296M */
+#define		V4L2_DV_1080I60		13 /* SMPTE 296M */
+#define		V4L2_DV_1080P24		14 /* SMPTE 296M */
+#define		V4L2_DV_1080P25		15 /* SMPTE 296M */
+#define		V4L2_DV_1080P30		16 /* SMPTE 296M */
+#define		V4L2_DV_1080P50		17 /* BT.1120 */
+#define		V4L2_DV_1080P60		18 /* BT.1120 */
+#define		V4L2_DV_2160P24		19 /* BT.1120 */
+
+#define		V4L2_DV_480P60			19
+#define		V4L2_DV_1080I59_94		20
+#define		V4L2_DV_1080P59_94		21
+
+#define		V4L2_DV_720P60_FP		22
+#define		V4L2_DV_720P60_SB_HALF		23
+#define		V4L2_DV_720P60_TB		24
+#define		V4L2_DV_720P59_94_FP		25
+#define		V4L2_DV_720P59_94_SB_HALF	26
+#define		V4L2_DV_720P59_94_TB		27
+#define		V4L2_DV_720P50_FP		28
+#define		V4L2_DV_720P50_SB_HALF		29
+#define		V4L2_DV_720P50_TB		30
+#define		V4L2_DV_1080P24_FP		31
+#define		V4L2_DV_1080P24_SB_HALF		32
+#define		V4L2_DV_1080P24_TB		33
+#define		V4L2_DV_1080P23_98_FP		34
+#define		V4L2_DV_1080P23_98_SB_HALF	35
+#define		V4L2_DV_1080P23_98_TB		36
+#define		V4L2_DV_1080I60_SB_HALF		37
+#define		V4L2_DV_1080I59_94_SB_HALF	38
+#define		V4L2_DV_1080I50_SB_HALF		39
+#define		V4L2_DV_1080P60_SB_HALF		40
+#define		V4L2_DV_1080P60_TB		41
+#define		V4L2_DV_1080P30_FP		42
+#define		V4L2_DV_1080P30_SB_HALF		43
+#define	V4L2_DV_1080P30_TB	44
+
+/*
  *	D V 	B T	T I M I N G S
  */
 
@@ -1071,6 +1125,9 @@ struct v4l2_dv_timings {
 /* Values for the type field */
 #define V4L2_DV_BT_656_1120	0	/* BT.656/1120 timing type */
 
+#define V4L2_DV_BT_SB_HALF	(1 << 8)	/* side-by-side S3D type */
+#define V4L2_DV_BT_TB		(1 << 6)	/* top and bottom S3D type */
+#define V4L2_DV_BT_FP		(1 << 0)	/* frame packing S3D type */
 
 /** struct v4l2_enum_dv_timings - DV timings enumeration
  * @index:	enumeration index
