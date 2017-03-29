@@ -169,6 +169,17 @@ sd_store_cache_type(struct device *dev, struct device_attribute *attr,
 			break;
 		}
 	}
+	
+	/*
+	 * We want to enforce the cache_type "none" to enable the devices
+	 * deep-sleep ability again. Disable both write-cache and read-cache
+	 * to accomplish that.
+	 */
+	sdkp->cache_override = 1;
+	sdkp->WCE = 0;
+	sdkp->RCD = 1;
+	return count;
+	
 	if (ct < 0)
 		return -EINVAL;
 	rcd = ct & 0x01 ? 1 : 0;
@@ -1219,6 +1230,15 @@ static int sd_open(struct block_device *bdev, fmode_t mode)
 		if (scsi_block_when_processing_errors(sdev))
 			scsi_set_medium_removal(sdev, SCSI_REMOVAL_PREVENT);
 	}
+	
+	/*
+	 * We want to enforce the cache_type "none" to enable the devices
+	 * deep-sleep ability again. Disable both write-cache and read-cache
+	 * to accomplish that.
+	 */
+	sdkp->cache_override = 1;
+	sdkp->WCE = 0;
+	sdkp->RCD = 1;
 
 	return 0;
 
@@ -2354,7 +2374,6 @@ sd_read_cache_type(struct scsi_disk *sdkp, unsigned char *buffer)
 	int old_rcd = sdkp->RCD;
 	int old_dpofua = sdkp->DPOFUA;
 
-
 	if (sdkp->cache_override)
 		return;
 
@@ -2472,6 +2491,11 @@ sd_read_cache_type(struct scsi_disk *sdkp, unsigned char *buffer)
 		/* No cache flush allowed for well-known LU */
 		if (sdkp->WCE && (sdp->bootlunID == 1 || sdp->bootlunID == 2))
 			sdkp->WCE = 0;
+	
+		sd_printk(KERN_NOTICE, sdkp, "Forcing drive cache: none (WCE: 0; RCD: 1, Override: 1)\n");
+		sdkp->WCE = 0;		
+		sdkp->RCD = 1;
+		sdkp->cache_override = 1;
 
 		if (sdkp->first_scan || old_wce != sdkp->WCE ||
 		    old_rcd != sdkp->RCD || old_dpofua != sdkp->DPOFUA)
@@ -2502,7 +2526,12 @@ defaults:
 		sd_printk(KERN_ERR, sdkp, "Assuming drive cache: write through\n");
 		sdkp->WCE = 0;
 	}
-	sdkp->RCD = 0;
+	
+	sd_printk(KERN_NOTICE, sdkp, "Forcing drive cache: none (WCE: 0; RCD: 1, Override: 1)\n");
+	sdkp->WCE = 0;		
+	sdkp->RCD = 1;
+	sdkp->cache_override = 1;
+	
 	sdkp->DPOFUA = 0;
 }
 
