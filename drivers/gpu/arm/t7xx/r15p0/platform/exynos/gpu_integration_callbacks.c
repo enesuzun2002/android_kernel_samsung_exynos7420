@@ -54,10 +54,6 @@
 extern int sec_therm_get_ap_temperature(void);
 #endif
 
-#ifdef CONFIG_SCHED_HMP
-extern int set_hmp_boost(int enable);
-#endif
-
 #ifdef CONFIG_USE_VSYNC_SKIP
 void decon_extra_vsync_wait_set(int);
 void decon_extra_vsync_wait_add(int);
@@ -177,9 +173,6 @@ void gpu_destroy_context(void *ctx)
 				}
 			}
 		}
-		set_hmp_boost(0);
-		set_hmp_aggressive_up_migration(false);
-		set_hmp_aggressive_yield(false);
 #endif
 	}
 }
@@ -276,10 +269,6 @@ int gpu_vendor_dispatch(struct kbase_context *kctx, void * const args, u32 args_
 						break;
 					}
 				}
-				/* set hmp boost */
-				set_hmp_boost(1);
-				set_hmp_aggressive_up_migration(true);
-				set_hmp_aggressive_yield(true);
 #endif
 			}
 #ifdef CONFIG_MALI_DVFS
@@ -314,10 +303,6 @@ int gpu_vendor_dispatch(struct kbase_context *kctx, void * const args, u32 args_
 					}
 				}
 				platform->cur_policy = NULL;
-				/* unset hmp boost */
-				set_hmp_boost(0);
-				set_hmp_aggressive_up_migration(false);
-				set_hmp_aggressive_yield(false);
 #endif /* CONFIG_SCHED_HMP */
 #ifdef CONFIG_MALI_DVFS
 				if (kgp->padding) {
