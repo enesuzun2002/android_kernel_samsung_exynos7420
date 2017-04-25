@@ -19,7 +19,8 @@
 
 bool selinux_is_enabled(void)
 {
-#ifdef CONFIG_ALWAYS_ENFORCE
+#if defined(SELINUX_ALWAYS_ENFORCE) || \
+	defined(SELINUX_ALWAYS_PERMISSIVE)
 	return true;
 #else
 	return selinux_enabled;
@@ -29,8 +30,10 @@ EXPORT_SYMBOL_GPL(selinux_is_enabled);
 
 bool selinux_is_enforcing(void)
 {
-#ifdef CONFIG_ALWAYS_ENFORCE
+#if defined(SELINUX_ALWAYS_ENFORCE)
 	return true;
+#elif defined(SELINUX_ALWAYS_PERMISSIVE)
+	return false;
 #else
 	return selinux_enforcing;
 #endif
