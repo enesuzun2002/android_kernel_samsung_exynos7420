@@ -27,8 +27,6 @@
 #include <linux/suspend.h>
 #include <linux/exynos-ss.h>
 
-#define DM_HOTPLUG_DEBUG
-
 #if defined(CONFIG_SOC_EXYNOS5430)
 #define NORMALMIN_FREQ	1000000
 #else
@@ -1096,22 +1094,10 @@ static int on_run(void *data)
 		exe_cmd = diagnose_condition();
 
 		if (exynos_dm_hotplug_disabled()) {
-#ifdef DM_HOTPLUG_DEBUG
-			pr_info("dm_hotplug disable = %d\n", exynos_dm_hotplug_disabled());
-#endif
 			goto sleep;
 		}
 
 		if (prev_cmd != exe_cmd) {
-#ifdef DM_HOTPLUG_DEBUG
-			pr_info("frequency info : %d, prev_cmd %d, exe_cmd %d\n",
-					cur_load_freq, prev_cmd, exe_cmd);
-			pr_info("lcd is on : %d, low power mode = %d, dm_hotplug disable = %d\n",
-					lcd_is_on, in_low_power_mode, exynos_dm_hotplug_disabled());
-#if defined(CONFIG_SCHED_HMP)
-			pr_info("cluster1 cores hotplug out : %d\n", cluster1_hotplugged);
-#endif
-#endif
 			ret = dynamic_hotplug(exe_cmd);
 			if (ret < 0) {
 				if (ret == -EBUSY)
