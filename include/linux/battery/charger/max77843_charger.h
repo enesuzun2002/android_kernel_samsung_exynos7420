@@ -29,6 +29,7 @@
 
 enum {
 	CHIP_ID = 0,
+	CURRENT_MAX_TUNABLE = 1,
 };
 
 ssize_t max77843_chg_show_attrs(struct device *dev,
@@ -37,6 +38,13 @@ ssize_t max77843_chg_show_attrs(struct device *dev,
 ssize_t max77843_chg_store_attrs(struct device *dev,
 				struct device_attribute *attr,
 				const char *buf, size_t count);
+
+ssize_t max77843_chg_current_max_tunable_show(struct device *dev,
+			   struct device_attribute *attr, char *buf);
+
+ssize_t max77843_chg_current_max_tunable_store(struct device *dev,
+			    struct device_attribute *attr,
+			    const char *buf, size_t count);
 
 #define MAX77843_CHARGER_ATTR(_name)				\
 {							\
@@ -226,6 +234,7 @@ struct max77843_charger_data {
 	unsigned int	battery_present;
 	unsigned int	cable_type;
 	unsigned int	batt_cable_type;
+	unsigned int	charging_current_max_tunable;
 	unsigned int	charging_current_max;
 	unsigned int	charging_current;
 	unsigned int	input_current_limit;
