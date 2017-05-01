@@ -68,6 +68,11 @@ static enum power_supply_property max77843_otg_props[] = {
 
 static struct device_attribute max77843_charger_attrs[] = {
 	MAX77843_CHARGER_ATTR(chip_id),
+	{
+		.attr = { .name = "current_max_tunable", .mode = 0664 },
+		.show = max77843_chg_current_max_tunable_show,
+		.store = max77843_chg_current_max_tunable_store,
+	}
 };
 
 extern int muic_afc_set_voltage(int vol);
@@ -765,6 +770,11 @@ static void afc_detect_work(struct work_struct *work)
 		if (charger->charging_current_max >= INPUT_CURRENT_TA) {
 			charger->charging_current_max = charger->pdata->charging_current[
 					POWER_SUPPLY_TYPE_MAINS].input_current_limit;
+
+			/* Enforce an upper charging-limit */
+			if (charger->charging_current_max > charger->charging_current_max_tunable) {
+				charger->charging_current_max = charger->charging_current_max_tunable;
+			}
 		}
 		pr_info("%s: current_max(%d)\n", __func__, charger->charging_current_max);
 		max77843_set_current(charger);
@@ -777,6 +787,11 @@ static void afc_detect_work(struct work_struct *work)
 		if (charger->charging_current_max >= INPUT_CURRENT_TA) {
 			charger->charging_current_max = charger->pdata->charging_current[
 					charger->cable_type].input_current_limit;
+
+			/* Enforce an upper charging-limit */
+			if (charger->charging_current_max > charger->charging_current_max_tunable) {
+				charger->charging_current_max = charger->charging_current_max_tunable;
+			}
 		}
 		pr_info("%s: current_max(%d)\n", __func__, charger->charging_current_max);
 		max77843_set_current(charger);
@@ -861,6 +876,11 @@ static void reduce_input_current(struct max77843_charger_data *charger, int cur)
 			(min_input_current / charger->input_curr_limit_step) : set_value;
 		max77843_write_reg(charger->i2c, MAX77843_CHG_REG_CNFG_09, set_value);
 		charger->charging_current_max = max77843_get_input_current(charger);
+
+		/* Enforce an upper charging-limit */
+		if (charger->charging_current_max > charger->charging_current_max_tunable) {
+			charger->charging_current_max = charger->charging_current_max_tunable;
+		}
 		pr_info("%s: set current: reg:(0x%x), val:(0x%x), input_current(%d)\n",
 			__func__, MAX77843_CHG_REG_CNFG_09, set_value, charger->charging_current_max);
 	}
@@ -899,6 +919,11 @@ static void max77843_charger_function_control(
 				((value.intval == POWER_SUPPLY_HEALTH_UNSPEC_FAILURE) || \
 				 (value.intval == POWER_SUPPLY_HEALTH_OVERHEATLIMIT)) ?
 				0 : charger->pdata->charging_current[POWER_SUPPLY_TYPE_USB].input_current_limit;
+
+			/* Enforce an upper charging-limit */
+			if (charger->charging_current_max > charger->charging_current_max_tunable) {
+				charger->charging_current_max = charger->charging_current_max_tunable;
+			}
 		}
 
 		if (charger->cable_type == POWER_SUPPLY_TYPE_OTG) {
@@ -934,6 +959,11 @@ static void max77843_charger_function_control(
 		charger->charging_current_max =
 			charger->pdata->charging_current
 			[charger->cable_type].input_current_limit;
+
+		/* Enforce an upper charging-limit */
+		if (charger->charging_current_max > charger->charging_current_max_tunable) {
+			charger->charging_current_max = charger->charging_current_max_tunable;
+		}
 		charger->charging_current =
 			charger->pdata->charging_current
 			[charger->cable_type].fast_charging_current;
@@ -945,6 +975,11 @@ static void max77843_charger_function_control(
 				charger->charging_current_max =
 					charger->pdata->charging_current
 					[POWER_SUPPLY_TYPE_MDOCK_TA].input_current_limit;
+
+				/* Enforce an upper charging-limit */
+				if (charger->charging_current_max > charger->charging_current_max_tunable) {
+					charger->charging_current_max = charger->charging_current_max_tunable;
+				}
 			} else if (charger->cable_type == POWER_SUPPLY_TYPE_SMART_OTG) {
 				charger->charging_current =
 					charger->pdata->charging_current
@@ -952,6 +987,11 @@ static void max77843_charger_function_control(
 				charger->charging_current_max =
 					charger->pdata->charging_current
 					[POWER_SUPPLY_TYPE_MDOCK_TA].input_current_limit - 500;
+
+				/* Enforce an upper charging-limit */
+				if (charger->charging_current_max > charger->charging_current_max_tunable) {
+					charger->charging_current_max = charger->charging_current_max_tunable;
+				}
 			}
 		} else { /*if mdock wasn't inserted, then check mdock state*/
 			if (charger->cable_type == POWER_SUPPLY_TYPE_MDOCK_TA)
@@ -1182,6 +1222,46 @@ ssize_t max77843_chg_store_attrs(struct device *dev,
 	return ret;
 }
 
+ssize_t max77843_chg_current_max_tunable_show(struct device *dev,
+			   struct device_attribute *attr, char *buf)
+{
+	struct power_supply *psy = dev_get_drvdata(dev);
+	struct max77843_charger_data *charger =
+		container_of(psy, struct max77843_charger_data, psy_chg);
+
+	return sprintf(buf, "%d\n", charger->charging_current_max_tunable);
+}
+
+ssize_t max77843_chg_current_max_tunable_store(struct device *dev,
+			    struct device_attribute *attr,
+			    const char *buf, size_t count)
+{
+	struct power_supply *psy = dev_get_drvdata(dev);
+	struct max77843_charger_data *charger =
+		container_of(psy, struct max77843_charger_data, psy_chg);
+	int val = 0;
+
+	if (sscanf(buf, "%d", &val) != 1) {
+		pr_err("%s, input parameter count was wrong.\n", __func__);
+		return -EINVAL;
+	}
+
+	charger->charging_current_max_tunable = val;
+
+#if defined(CONFIG_WIRELESS_CHARGER_INBATTERY)
+		if((charger->siop_level < 100) &&
+			(charger->charging_current_max == charger->pdata->wpc_delayed_current) &&
+			(charger->batt_cable_type == POWER_SUPPLY_TYPE_WIRELESS))
+			pr_info("%s skip set current \n", __func__);
+		else
+			max77843_set_current(charger);
+#else
+		max77843_set_current(charger);
+#endif
+
+	return count;
+}
+
 static int max77843_chg_get_property(struct power_supply *psy,
 			      enum power_supply_property psp,
 			      union power_supply_propval *val)
@@ -1358,6 +1438,11 @@ static int max77843_chg_set_property(struct power_supply *psy,
 	/* val->intval : input charging current */
 	case POWER_SUPPLY_PROP_CURRENT_MAX:
 		charger->charging_current_max = val->intval;
+
+		/* Enforce an upper charging-limit */
+		if (charger->charging_current_max > charger->charging_current_max_tunable) {
+			charger->charging_current_max = charger->charging_current_max_tunable;
+		}
 #if defined(CONFIG_WIRELESS_CHARGER_INBATTERY)
 		if((charger->siop_level < 100) &&
 			(charger->charging_current_max == charger->pdata->wpc_delayed_current) &&
@@ -2247,6 +2332,7 @@ static int __devinit max77843_charger_probe(struct platform_device *pdev)
 	charger->store_mode = false;
 	charger->siop_level = 100;
 	charger->charging_current_max = 500;
+	charger->charging_current_max_tunable = 1500;
 	charger->max77843_pdata = pdata;
 	charger->input_curr_limit_step = 33;
 	charger->is_call_on = false;
