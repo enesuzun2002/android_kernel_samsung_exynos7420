@@ -620,13 +620,12 @@ static void cpufreq_powerstats_free(void)
 }
 
 static int cpufreq_stats_create_table(struct cpufreq_policy *policy,
-		struct cpufreq_frequency_table *table, int count)
+	int cpu, struct cpufreq_frequency_table *table, int count)
 {
 	unsigned int i, j, ret = 0;
 	struct cpufreq_stats *stat;
 	struct cpufreq_policy *data;
 	unsigned int alloc_size;
-	unsigned int cpu = policy->cpu;
 	struct cpufreq_stats *prev_stat = per_cpu(prev_cpufreq_stats_table, cpu);
 
 	if (per_cpu(cpufreq_stats_table, cpu))
@@ -645,8 +644,6 @@ static int cpufreq_stats_create_table(struct cpufreq_policy *policy,
 	}
 
 	ret = sysfs_create_group(&data->kobj, &stats_attr_group);
-	if (ret)
-		goto error_out;
 
 	stat->cpu = cpu;
 	per_cpu(cpufreq_stats_table, cpu) = stat;
@@ -901,7 +898,7 @@ static int cpufreq_stat_notifier_policy(struct notifier_block *nb,
 	if (!per_cpu(cpufreq_power_stats, cpu))
 		cpufreq_powerstats_create(cpu, table, count);
 
-	ret = cpufreq_stats_create_table(policy, table, count);
+	ret = cpufreq_stats_create_table(policy, cpu, table, count);
 	if (ret)
 		return ret;
 	return 0;
@@ -1045,7 +1042,7 @@ static int cpufreq_stats_create_table_cpu(unsigned int cpu)
 	if (!per_cpu(cpufreq_power_stats, cpu))
 		cpufreq_powerstats_create(cpu, table, count);
 
-	ret = cpufreq_stats_create_table(policy, table, count);
+	ret = cpufreq_stats_create_table(policy, cpu, table, count);
 
 out:
 	cpufreq_cpu_put(policy);
