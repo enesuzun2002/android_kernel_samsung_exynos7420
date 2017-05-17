@@ -837,7 +837,7 @@ static ssize_t store_max77843_rgb_blink(struct device *dev,
 		max77843_rgb_set_state(&max77843_rgb->led[BLUE], led_b_brightness, LED_BLINK);
 	}
 	/*Should we ramp?*/
-	if (led_enable_fade)
+	if (led_enable_fade && delay_on_time > 0)
 	{
 		max77843_rgb_ramp(dev, led_fade_time_up, led_fade_time_down);
 	}
