@@ -693,7 +693,15 @@ static ssize_t store_max77843_rgb_pattern(struct device *dev,
 		max77843_rgb_set_state(&max77843_rgb->led[BLUE], led_dynamic_current, LED_BLINK);
 		break;
 	case LOW_BATTERY:
-		max77843_rgb_blink(dev, 500, 5000);
+		if (led_enable_fade)
+		{
+			max77843_rgb_ramp(dev, led_fade_time_up, led_fade_time_down);
+			max77843_rgb_blink(dev, led_fade_time_up, 5000);
+		}
+		else
+		{
+			max77843_rgb_blink(dev, 500, 5000);
+		}
 		max77843_rgb_set_state(&max77843_rgb->led[RED], led_dynamic_current, LED_BLINK);
 		break;
 	case FULLY_CHARGED:
@@ -817,6 +825,7 @@ static ssize_t store_max77843_rgb_blink(struct device *dev,
 			}
 		}
 	}
+	
 
 	if (led_r_brightness) {
 		max77843_rgb_set_state(&max77843_rgb->led[RED], led_r_brightness, LED_BLINK);
@@ -827,8 +836,13 @@ static ssize_t store_max77843_rgb_blink(struct device *dev,
 	if (led_b_brightness) {
 		max77843_rgb_set_state(&max77843_rgb->led[BLUE], led_b_brightness, LED_BLINK);
 	}
+	/*Should we ramp?*/
+	if (led_enable_fade)
+	{
+		max77843_rgb_ramp(dev, led_fade_time_up, led_fade_time_down);
+	}
 	/*Set LED blink mode*/
-	max77843_rgb_blink(dev, delay_on_time, delay_off_time);
+	max77843_rgb_blink(dev, led_fade_time_up, delay_off_time);
 
 	pr_info("leds-max77843-rgb: %s, delay_on_time= %x, delay_off_time= %x\n", __func__, delay_on_time, delay_off_time);
 	dev_dbg(dev, "led_blink is called, Color:0x%X Brightness:%i\n",
