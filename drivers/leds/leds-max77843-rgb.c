@@ -842,7 +842,7 @@ static ssize_t store_max77843_rgb_blink(struct device *dev,
 		max77843_rgb_ramp(dev, led_fade_time_up, led_fade_time_down);
 	}
 	/*Set LED blink mode*/
-	max77843_rgb_blink(dev, led_fade_time_up, delay_off_time);
+	max77843_rgb_blink(dev, delay_on_time, delay_off_time);
 
 	pr_info("leds-max77843-rgb: %s, delay_on_time= %x, delay_off_time= %x\n", __func__, delay_on_time, delay_off_time);
 	dev_dbg(dev, "led_blink is called, Color:0x%X Brightness:%i\n",
