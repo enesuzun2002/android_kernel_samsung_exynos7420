@@ -2,11 +2,11 @@
  * fs/sdcardfs/super.c
  *
  * Copyright (c) 2013 Samsung Electronics Co. Ltd
- *   Authors: Daeho Jeong, Woojoong Lee, Seunghwan Hyun, 
+ *   Authors: Daeho Jeong, Woojoong Lee, Seunghwan Hyun,
  *               Sunghwan Yun, Sungjong Seo
- *                      
+ *
  * This program has been developed as a stackable file system based on
- * the WrapFS which written by 
+ * the WrapFS which written by
  *
  * Copyright (c) 1998-2011 Erez Zadok
  * Copyright (c) 2009     Shrikar Archak
@@ -78,32 +78,25 @@ static int sdcardfs_statfs(struct dentry *dentry, struct kstatfs *buf)
 	err = vfs_statfs(&lower_path, buf);
 	sdcardfs_put_lower_path(dentry, &lower_path);
 
-	if (uid_eq(GLOBAL_ROOT_UID, current_fsuid()) ||
-			capable(CAP_SYS_RESOURCE) ||
-			in_group_p(AID_USE_ROOT_RESERVED) ||
-			in_group_p(AID_USE_SEC_RESERVED))
-		goto out;
-	
 	if (sbi->options.reserved_mb) {
 		/* Invalid statfs informations. */
 		if (buf->f_bsize == 0) {
-			printk(KERN_ERR "Returned block size is zero.\n");
+			pr_err("Returned block size is zero.\n");
 			return -EINVAL;
 		}
-	
+
 		min_blocks = ((sbi->options.reserved_mb * 1024 * 1024)/buf->f_bsize);
 		buf->f_blocks -= min_blocks;
-	
+
 		if (buf->f_bavail > min_blocks)
 			buf->f_bavail -= min_blocks;
 		else
 			buf->f_bavail = 0;
-	
+
 		/* Make reserved blocks invisiable to media storage */
 		buf->f_bfree = buf->f_bavail;
 	}
 
-out:
 	/* set return buf to our f/s to avoid confusing user-level utils */
 	buf->f_type = SDCARDFS_SUPER_MAGIC;
 
@@ -154,6 +147,7 @@ static int sdcardfs_remount_fs2(struct vfsmount *mnt, struct super_block *sb,
 	pr_info("Remount options were %s for vfsmnt %p.\n", options, mnt);
 	err = parse_options_remount(sb, options, *flags & ~MS_SILENT, mnt->data);
 
+
 	return err;
 }
 
@@ -178,8 +172,8 @@ static void sdcardfs_copy_mnt_data(void *data, void *newdata)
 	old->mask = new->mask;
 }
 
-
- /* Called by iput() when the inode reference count reached zero
+/*
+ * Called by iput() when the inode reference count reached zero
  * and the inode is not hashed anywhere.  Used to clear anything
  * that needs to be, before the inode is completely destroyed and put
  * on the inode free list.
@@ -221,6 +215,9 @@ static struct inode *sdcardfs_alloc_inode(struct super_block *sb)
 
 	i->data = d;
 	kref_init(&d->refcount);
+	i->top_data = d;
+	spin_lock_init(&i->top_lock);
+	kref_get(&d->refcount);
 
 	i->vfs_inode.i_version = 1;
 	return &i->vfs_inode;
@@ -253,6 +250,7 @@ int sdcardfs_init_inode_cache(void)
 		kmem_cache_create("sdcardfs_inode_cache",
 				  sizeof(struct sdcardfs_inode_info), 0,
 				  SLAB_RECLAIM_ACCOUNT, init_once);
+
 	if (!sdcardfs_inode_cachep)
 		return -ENOMEM;
 
@@ -309,6 +307,8 @@ static int sdcardfs_show_options(struct vfsmount *mnt, struct seq_file *m,
 		seq_printf(m, ",userid=%u", opts->fs_user_id);
 	if (opts->gid_derivation)
 		seq_puts(m, ",derive_gid");
+	if (opts->default_normal)
+		seq_puts(m, ",default_normal");
 	if (opts->reserved_mb != 0)
 		seq_printf(m, ",reserved=%uMB", opts->reserved_mb);
 
