@@ -1649,7 +1649,7 @@ static void __jbd2_journal_temp_unlink_buffer(struct journal_head *jh)
 			set_buffer_jmeta(bh);
 #endif
 		mark_buffer_dirty_sync(bh); /* Expose it to the VM */
-	}
+}
 }
 
 /*

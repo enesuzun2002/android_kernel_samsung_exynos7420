@@ -396,11 +396,7 @@ static void ip6gre_err(struct sk_buff *skb, struct inet6_skb_parm *opt,
 	key = key_off ? *(__be32 *)(skb->data + key_off) : 0;
 
 	t = ip6gre_tunnel_lookup(skb->dev, &ipv6h->daddr, &ipv6h->saddr,
-<<<<<<< HEAD
 				key, greh->protocol);
-=======
-				 key, greh->protocol);
->>>>>>> 73e926ec... Linux 3.10.106
 	if (t == NULL)
 		return;
 
