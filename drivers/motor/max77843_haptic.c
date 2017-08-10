@@ -413,8 +413,7 @@ static ssize_t intensity_show(struct device *dev,
 	struct max77843_haptic_data *drvdata
 		= container_of(tdev, struct max77843_haptic_data, tout_dev);
 
-	return sprintf(buf, "intensity: %u\n",
-			(drvdata->intensity * 100));
+	return sprintf(buf, "intensity: %u\n",drvdata->intensity);
 }
 
 static DEVICE_ATTR(intensity, 0660, intensity_show, intensity_store);
