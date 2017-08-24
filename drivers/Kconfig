@@ -206,4 +206,6 @@ source "drivers/bts/Kconfig"
 source "drivers/ledmatrix/Kconfig"
 
 source "drivers/soc/Kconfig"
+
+source "drivers/android/Kconfig"
 endmenu
