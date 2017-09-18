@@ -174,7 +174,7 @@ static const struct usb_device_id usb_quirk_list[] = {
 	/* Qualcomm MDM9x35 */
 	{ USB_DEVICE(0x05c6, 0x909E), .driver_info = USB_QUIRK_HSIC_TUNE | USB_QUIRK_IGNORE_REMOTE_WAKEUP },
 #endif
-	{ }  /* terminating entry must be last */
+{ }  /* terminating entry must be last */
 };
 
 static const struct usb_device_id usb_interface_quirk_list[] = {
