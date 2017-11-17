@@ -600,6 +600,10 @@ static ssize_t sensorRGB_store(struct device *dev,
 		mdnie->white_b = white_blue;
 
 		mdnie_update_sequence(mdnie, &(mdnie->table_buffer));
+
+		table->seq[scr_info->index].cmd[scr_info->white_r] = (unsigned char)white_red;
+		table->seq[scr_info->index].cmd[scr_info->white_g] = (unsigned char)white_green;
+		table->seq[scr_info->index].cmd[scr_info->white_b] = (unsigned char)white_blue;
 	}
 
 	return count;
