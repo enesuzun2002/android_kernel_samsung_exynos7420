@@ -2154,6 +2154,7 @@ int expand_upwards(struct vm_area_struct *vma, unsigned long address)
 
 	/* Guard against wrapping around to address 0. */
 	address &= PAGE_MASK;
+
 	address += PAGE_SIZE;
 	if (!address)
 		return -ENOMEM;
