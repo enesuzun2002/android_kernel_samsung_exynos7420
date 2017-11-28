@@ -38,6 +38,22 @@
 static int underrun_filter_status;
 static struct delayed_work underrun_filter_work;
 
+static void decon_dump(struct decon_device *decon)
+{
+	dev_err(decon->dev, "=== DECON%d SFR DUMP ===\n", decon->id);
+
+	print_hex_dump(KERN_ERR, "", DUMP_PREFIX_ADDRESS, 32, 4,
+			decon->regs, 0x718, false);
+	dev_err(decon->dev, "=== DECON%d MIC SFR DUMP ===\n", decon->id);
+
+	print_hex_dump(KERN_ERR, "", DUMP_PREFIX_ADDRESS, 32, 4,
+			decon->regs + 0x2400, 0x20, false);
+	dev_err(decon->dev, "=== DECON%d SHADOW SFR DUMP ===\n", decon->id);
+
+	print_hex_dump(KERN_ERR, "", DUMP_PREFIX_ADDRESS, 32, 4,
+			decon->regs + SHADOW_OFFSET, 0x718, false);
+}
+
 static void underrun_filter_handler(struct work_struct *ws)
 {
        msleep(UNDERRUN_FILTER_INTERVAL_MS);
@@ -63,6 +79,10 @@ static void decon_oneshot_underrun_log(struct decon_device *decon)
 				decon->underrun_stat.used_windows,
 				decon->underrun_stat.aclk / MHZ,
 				decon->underrun_stat.lh_disp0 / MHZ);
+		decon_reg_set_int_fifo(decon->id, 0);
+		decon->int_fifo_status = false;
+		decon_dump(decon);
+		vpp_dump(decon);
 	}
 	decon->underrun_stat.underrun_cnt = 0;
 

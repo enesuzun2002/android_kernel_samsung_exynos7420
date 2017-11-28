@@ -108,6 +108,7 @@ void decon_reg_start(u32 id, enum decon_dsi_mode dsi_mode, struct decon_psr_info
 int decon_reg_stop(u32 id, enum decon_dsi_mode dsi_mode, struct decon_psr_info *psr);
 void decon_reg_set_regs_data(u32 id, int win_idx, struct decon_regs_data *regs);
 void decon_reg_set_int(u32 id, struct decon_psr_info *psr, enum decon_dsi_mode dsi_mode, u32 en);
+void decon_reg_set_int_fifo(u32 id, u32 en);
 void decon_reg_set_trigger(u32 id, enum decon_dsi_mode dsi_mode,
 			enum decon_trig_mode trig, enum decon_set_trig en);
 int decon_reg_wait_for_update_timeout(u32 id, unsigned long timeout);

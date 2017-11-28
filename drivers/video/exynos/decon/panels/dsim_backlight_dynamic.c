@@ -722,7 +722,10 @@ static int low_level_set_brightness_for_hmt(struct dsim_device *dsim ,int force)
 	dsim_panel_set_elvss_for_hmt(dsim);
 
 	dsim_panel_set_vint(dsim, force);
-
+#ifdef CONFIG_LCD_DOZE_MODE_ADITION_S6
+	if (dsim_write_hl_data(dsim, HF3_A3_IRC_off, ARRAY_SIZE(HF3_A3_IRC_off)) < 0)
+		dsim_err("%s : failed to write HF3_A3_IRC_off \n", __func__);
+#endif
 	if (dsim_write_hl_data(dsim, SEQ_GAMMA_UPDATE, ARRAY_SIZE(SEQ_GAMMA_UPDATE)) < 0)
 		dsim_err("%s : failed to write gamma \n", __func__);
 	if (dsim_write_hl_data(dsim, SEQ_GAMMA_UPDATE_L, ARRAY_SIZE(SEQ_GAMMA_UPDATE_L)) < 0)
@@ -826,7 +829,11 @@ set_br_exit:
 
 static int panel_get_brightness(struct backlight_device *bd)
 {
-	return bd->props.brightness;
+	struct panel_private *priv = bl_get_data(bd);
+
+struct dsim_device *dsim = container_of(priv, struct dsim_device, priv);
+
+	return get_actual_br_value(dsim, priv->br_index);
 }
 
 

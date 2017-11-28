@@ -643,6 +643,12 @@ void decon_reg_set_regs_data(u32 id, int win_idx, struct decon_regs_data *regs)
 	decon_dbg("%s: regs->type(%d)\n", __func__, regs->type);
 }
 
+void decon_reg_set_int_fifo(u32 id, u32 en) {
+	u32 val = en ? ~0 : 0;
+
+	decon_write_mask(id, VIDINTCON0, val, VIDINTCON0_INT_FIFO);
+}
+
 void decon_reg_set_int(u32 id, struct decon_psr_info *psr, enum decon_dsi_mode dsi_mode, u32 en)
 {
 	u32 val;

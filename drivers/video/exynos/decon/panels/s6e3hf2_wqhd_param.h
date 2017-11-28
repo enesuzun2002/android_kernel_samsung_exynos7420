@@ -73,6 +73,19 @@ struct lcd_seq_info {
 #define S6E3HF2_REG_MIC_ADDR 	0xF9
 #define S6E3HF2_REG_MIC_LEN	1
 
+#ifdef CONFIG_LCD_DOZE_MODE
+#define	ALPM_OFF			0
+#define ALPM_ON_LOW			1
+#define HLPM_ON_LOW			2
+#define ALPM_ON_HIGH			3
+#define HLPM_ON_HIGH			4
+#endif
+
+#if defined(CONFIG_LCD_ALPM) || defined(CONFIG_LCD_DOZE_MODE)
+#define UNSUPPORT_ALPM					0
+#define SUPPORT_30HZALPM				1
+#define SUPPORT_LOWHZALPM				2
+#endif
 
 static const unsigned int VINT_DIM_TABLE[] = {
 	5,	6,	7,	8,	9,
@@ -301,6 +314,43 @@ enum {
 	ACL_OPR_MAX
 };
 
+#if defined(CONFIG_FB_DSU)
+static const unsigned char S6E3HF2_SEQ_DDI_SCALER_WQHD_00[] = {
+	0xBA,
+	0x01
+};
+
+static const unsigned char S6E3HF2_SEQ_DDI_SCALER_FHD_00[] = {
+	0xBA,
+	0x00
+};
+
+static const unsigned char S6E3HF2_SEQ_DDI_SCALER_FHD_01[] = {
+	0x2A,
+	0x00, 0x00, 0x04, 0x37,
+};
+
+static const unsigned char S6E3HF2_SEQ_DDI_SCALER_FHD_02[] = {
+	0x2B,
+	0x00, 0x00, 0x07, 0x7F,
+};
+
+static const unsigned char S6E3HF2_SEQ_DDI_SCALER_HD_00[] = {
+	0xBA,
+	0x01
+};
+
+static const unsigned char S6E3HF2_SEQ_DDI_SCALER_HD_01[] = { /* HA2 not support HD */
+	0x2A,
+	0x00, 0x00, 0x02, 0xCF,
+};
+
+static const unsigned char S6E3HF2_SEQ_DDI_SCALER_HD_02[] = {
+	0x2B,
+	0x00, 0x00, 0x04, 0xFF,
+};
+#endif
+
 #if defined(CONFIG_SEC_FACTORY) && defined(CONFIG_EXYNOS_DECON_LCD_MCD)
 
 static const unsigned char SEQ_MCD_ON_SET1[][2] = {
@@ -358,6 +408,29 @@ static const unsigned char SEQ_HMT_ON3[] = {		/* PASET Setting  */
 	0x00, 0x00, 0x09, 0xFF
 };
 
+static const unsigned char HF2_A2_IRC_off[2] = {0xB8, 0x00};
+
+static const unsigned char SEQ_SELECT_ALPM[] = {
+	0xBB,
+	0xC4
+};
+
+static const unsigned char SEQ_SELECT_HLPM[] = {
+	0xBB,
+	0x54
+};
+
+static const unsigned char SEQ_2NIT_MODE_ON[] = {
+	0x53, 0x03
+};
+
+static const unsigned char SEQ_40NIT_MODE_ON[] = {
+	0x53, 0x02
+};
+
+static const unsigned char SEQ_NORMAL_MODE_ON[] = {
+	0x53, 0x00
+};
 
 static const unsigned char SEQ_HMT_OFF1[] = {	/* aid */
 	0xB2,
@@ -459,7 +532,7 @@ static const char HBM_INTER_22TH_OFFSET[IBRIGHTNESS_HBM_MAX][TEMP_MAX] = {
 	[IBRIGHTNESS_491NIT] =				{-0x06,	-0x06,	-0x06},
 	[IBRIGHTNESS_517NIT] =				{-0x06,	-0x06,	-0x06},
 	[IBRIGHTNESS_545NIT] =				{-0x06,	-0x06,	-0x06},
-	[IBRIGHTNESS_600NIT] =				{0x00,	0x00,	0x00}
+	[IBRIGHTNESS_600NIT] =				{-0x06,	-0x06,	-0x06}
 };
 
 #endif /* __S6E3HF2_PARAM_H__ */

@@ -587,7 +587,10 @@ static int low_level_set_brightness_for_hmt(struct dsim_device *dsim ,int force)
 	dsim_panel_set_elvss_for_hmt(dsim);
 
 	dsim_panel_set_vint(dsim, force);
-
+#ifdef CONFIG_LCD_DOZE_MODE	
+	if (dsim_write_hl_data(dsim, HF2_A2_IRC_off, ARRAY_SIZE(HF2_A2_IRC_off)) < 0)
+		dsim_err("%s : failed to write HF2_A2_IRC_off \n", __func__);
+#endif		
 	if (dsim_write_hl_data(dsim, SEQ_GAMMA_UPDATE, ARRAY_SIZE(SEQ_GAMMA_UPDATE)) < 0)
 		dsim_err("%s : failed to write gamma \n", __func__);
 	if (dsim_write_hl_data(dsim, SEQ_GAMMA_UPDATE_L, ARRAY_SIZE(SEQ_GAMMA_UPDATE_L)) < 0)
