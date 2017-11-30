@@ -40,7 +40,7 @@ enum crash_reason_event
 	CRASH_REASON_MAX_CNT
 };
 
-static const char const *cp_crash_reason[] = {
+static const char *cp_crash_reason[] = {
 	[CRASH_REASON_RESET] = "CP_CRASH_RESET\n",
 	[CRASH_REASON_EXIT] = "CP_CRASH_EXIT\n",
 	[CRASH_REASON_AT_RX] = "abnormal RX. contact to CP team\n",

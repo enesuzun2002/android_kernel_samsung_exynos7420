@@ -41,7 +41,7 @@ enum pm_state {
 	PM_STATE_AP_FAIL
 };
 
-static const char const *pm_state_string[] = {
+static const char *pm_state_string[] = {
 	[PM_STATE_UNMOUNTED] = "UNMOUNTED",
 	[PM_STATE_SUSPENDED] = "SUSPENDED",
 	[PM_STATE_HOLDING] = "HOLDING",
@@ -87,7 +87,7 @@ enum pm_event {
 	PM_EVENT_STOP_PM
 };
 
-static const char const *pm_event_string[] = {
+static const char *pm_event_string[] = {
 	[PM_EVENT_NO_EVENT] = "NO_EVENT",
 	[PM_EVENT_LOCK_ON] = "LOCK_ON",
 	[PM_EVENT_CP_BOOTING] = "CP_BOOTING",

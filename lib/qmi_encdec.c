@@ -22,6 +22,8 @@
 
 #include "qmi_encdec_priv.h"
 
+#define U8_MAX  ((u8)(~0U))
+
 #define TLV_LEN_SIZE sizeof(uint16_t)
 #define TLV_TYPE_SIZE sizeof(uint8_t)
 

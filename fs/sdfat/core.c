@@ -1590,7 +1590,7 @@ static bool is_fat32(pbr_t *pbr)
 	return true;
 }
 
-inline pbr_t *read_pbr_with_logical_sector(struct super_block *sb, struct buffer_head **prev_bh)
+static inline pbr_t *read_pbr_with_logical_sector(struct super_block *sb, struct buffer_head **prev_bh)
 {
 	pbr_t *p_pbr = (pbr_t *) (*prev_bh)->b_data;
 	u16 logical_sect = 0;

@@ -183,7 +183,7 @@ static long esoc_dev_ioctl(struct file *file, unsigned int cmd,
 	struct esoc_uhandle *uhandle = file->private_data;
 	struct esoc_udev *esoc_udev = uhandle->esoc_udev;
 	struct esoc_clink *esoc_clink = uhandle->esoc_clink;
-	const struct esoc_clink_ops const *clink_ops = esoc_clink->clink_ops;
+	const struct esoc_clink_ops *clink_ops = esoc_clink->clink_ops;
 	void __user *uarg = (void __user *)arg;
 
 	switch (cmd) {
@@ -337,7 +337,7 @@ static ssize_t esoc_dev_write(struct file *file,
 {
 	struct esoc_uhandle *uhandle = file->private_data;
 	struct esoc_clink *esoc_clink = uhandle->esoc_clink;
-	const struct esoc_clink_ops const *clink_ops = esoc_clink->clink_ops;
+	const struct esoc_clink_ops *clink_ops = esoc_clink->clink_ops;
 	char buf[16];
 	size_t buf_size;
 
