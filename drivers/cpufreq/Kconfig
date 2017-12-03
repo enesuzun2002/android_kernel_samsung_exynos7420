@@ -112,6 +112,12 @@ config CPU_FREQ_DEFAULT_GOV_INTERACTIVE
 	  loading your cpufreq low-level hardware driver, using the
 	  'interactive' governor for latency-sensitive workloads.
 
+config CPU_FREQ_DEFAULT_GOV_NEXUS
+	bool "nexus"
+	select CPU_FREQ_GOV_NEXUS
+	help
+	  Use the CPUFreq governor 'nexus' as default.
+
 endchoice
 
 config CPU_FREQ_GOV_PERFORMANCE
@@ -165,6 +171,18 @@ config CPU_FREQ_GOV_ONDEMAND
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called cpufreq_ondemand.
+
+	  For details, take a look at linux/Documentation/cpu-freq.
+
+	  If in doubt, say N.
+
+config CPU_FREQ_GOV_NEXUS
+	tristate "'nexus' cpufreq policy governor"
+	help
+	  Compile the CPUFreq governor 'nexus'.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called cpufreq_interactive.
 
 	  For details, take a look at linux/Documentation/cpu-freq.
 
