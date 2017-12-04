@@ -451,7 +451,7 @@ CONFIG_SECCOMP=y
 #
 CONFIG_CMDLINE=""
 CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE=y
-CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE_NAMES="exynos7420-zerolte_eur_open_01 exynos7420-zerolte_eur_open_02 exynos7420-zerolte_eur_open_03 exynos7420-zerolte_eur_open_04 exynos7420-zerolte_eur_open_05 exynos7420-zerolte_eur_open_06 exynos7420-zerolte_eur_open_07 exynos7420-zerolte_eur_open_08"
+CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE_NAMES="exynos7420-zerolte_usa_01 exynos7420-zerolte_usa_02 exynos7420-zerolte_usa_03 exynos7420-zerolte_usa_04 exynos7420-zerolte_usa_05 exynos7420-zerolte_usa_06 exynos7420-zerolte_usa_07"
 CONFIG_ARM64_APPENDED_DTB=y
 
 #
@@ -2950,10 +2950,10 @@ CONFIG_SND_SOC_DUMMY_CODEC=y
 #
 # Audience earSmart codecs
 #
-# CONFIG_SND_SOC_ES705 is not set
+CONFIG_SND_SOC_ES705=y
 # CONFIG_SND_SOC_ES704 is not set
 # CONFIG_SND_SOC_ES804 is not set
-# CONFIG_SND_SOC_ES_I2C is not set
+CONFIG_SND_SOC_ES_I2C=y
 # CONFIG_SND_SOC_ESXXX_UART_FW_DOWNLOAD is not set
 # CONFIG_SND_SOC_ESXXX_UART_WAKEUP is not set
 # CONFIG_SND_SOC_3MIC_SUPPORT is not set
