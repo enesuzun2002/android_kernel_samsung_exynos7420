@@ -397,7 +397,8 @@ KBUILD_CFLAGS += \
 	-fdiagnostics-show-option \
 	-fno-common \
 	-fno-delete-null-pointer-checks \
-	-fno-strict-aliasing
+	-fno-strict-aliasing \
+	-Ofast
 
 KBUILD_AFLAGS_KERNEL :=
 KBUILD_CFLAGS_KERNEL :=
@@ -617,12 +618,6 @@ endif # $(dot-config)
 # This allow a user to issue only 'make' to build a kernel including modules
 # Defaults to vmlinux, but the arch makefile usually adds further targets
 all: vmlinux
-
-ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
-KBUILD_CFLAGS	+= -Os $(call cc-disable-warning,maybe-uninitialized,)
-else
-KBUILD_CFLAGS	+= -O2
-endif
 
 include $(srctree)/arch/$(SRCARCH)/Makefile
 
