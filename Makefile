@@ -382,12 +382,23 @@ LINUXINCLUDE    := \
 
 KBUILD_CPPFLAGS := -D__KERNEL__
 
-KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
-		   -fno-strict-aliasing -fno-common \
-		   -Werror-implicit-function-declaration \
-		   -Wno-format-security \
-		   -fno-delete-null-pointer-checks \
-		   -fdiagnostics-show-option -Werror
+# Warnings
+KBUILD_CFLAGS := \
+	-Wall \
+	-Werror \
+	-Wundef \
+	-Wno-format-security \
+	-Wno-implicit-function-declaration \
+	-Wno-maybe-uninitialized \
+	-Wno-trigraphs
+
+# Flags
+KBUILD_CFLAGS += \
+	-fdiagnostics-show-option \
+	-fno-common \
+	-fno-delete-null-pointer-checks \
+	-fno-strict-aliasing
+
 KBUILD_AFLAGS_KERNEL :=
 KBUILD_CFLAGS_KERNEL :=
 KBUILD_AFLAGS   := -D__ASSEMBLY__
