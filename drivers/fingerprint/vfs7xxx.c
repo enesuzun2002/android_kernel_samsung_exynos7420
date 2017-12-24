@@ -195,6 +195,7 @@ struct vfsspi_device_data {
 #ifdef CONFIG_FB
 	struct notifier_block fb_notifier;
 #endif
+	bool sysfs_wakelocks;
 };
 
 #ifdef CONFIG_SENSORS_FINGERPRINT_DUALIZATION
@@ -691,7 +692,9 @@ static int vfsspi_set_clk(struct vfsspi_device_data *vfsspi_device,
 
 				kfree(spi_info);
 #ifdef FEATURE_SPI_WAKELOCK
-				wake_lock(&vfsspi_device->fp_spi_lock);
+				if (vfsspi_device->sysfs_wakelocks) {
+					wake_lock(&vfsspi_device->fp_spi_lock);
+				}
 #endif
 				vfsspi_device->enabled_clk = true;
 			} else
@@ -821,7 +824,9 @@ static irqreturn_t vfsspi_irq(int irq, void *context)
 			vfsspi_send_drdy_signal(vfsspi_device);
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 #ifdef FEATURE_SPI_WAKELOCK
-			wake_lock_timeout(&vfsspi_device->fp_signal_lock, 3 * HZ);
+			if (vfsspi_device->sysfs_wakelocks) {
+				wake_lock_timeout(&vfsspi_device->fp_signal_lock, HZ);
+			}
 #endif
 #endif
 			pr_info("%s disableIrq\n", __func__);
@@ -1318,6 +1323,8 @@ static int vfsspi_platformInit(struct vfsspi_device_data *vfsspi_device)
 		WAKE_LOCK_SUSPEND, "vfsspi_wake_lock");
 	wake_lock_init(&vfsspi_device->fp_signal_lock,
 		WAKE_LOCK_SUSPEND, "vfsspi_sigwake_lock");
+
+	vfsspi_device->sysfs_wakelocks = 1;
 #endif
 #endif
 
@@ -1591,6 +1598,90 @@ static ssize_t vfsspi_retain_store(struct device *dev,
 }
 #endif
 
+static ssize_t vfsspi_wakelocks_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", g_data->sysfs_wakelocks);
+}
+
+static ssize_t vfsspi_wakelocks_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	int val = 0;
+
+	if (g_data == NULL) {
+		pr_err("%s: g_data is NULL.\n", __func__);
+		return -EINVAL;
+	}
+
+	if (sscanf(buf, "%d", &val) != 1) {
+		pr_err("%s, input parameter count was wrong.\n", __func__);
+		return -EINVAL;
+	}
+
+	if (val == 1) {
+		g_data->sysfs_wakelocks = 1;
+	} else if (val == 0) {
+		g_data->sysfs_wakelocks = 0;
+	} else {
+		pr_err("%s, input value was not accepted.\n", __func__);
+		return -EINVAL;
+	}
+	return count;
+}
+
+static ssize_t vfsspi_ioctl_power_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	int val = 0;
+
+	if (g_data == NULL) {
+		pr_err("%s: g_data is NULL.\n", __func__);
+		return -EINVAL;
+	}
+
+	if (sscanf(buf, "%d", &val) != 1) {
+		pr_err("%s, input parameter count was wrong.\n", __func__);
+		return -EINVAL;
+	}
+
+	if (val == 1) {
+		vfsspi_regulator_onoff(g_data, true);
+	} else if (val == 0) {
+		vfsspi_regulator_onoff(g_data, false);
+	} else {
+		pr_err("%s, input value was not accepted.\n", __func__);
+		return -EINVAL;
+	}
+	return count;
+}
+
+static ssize_t vfsspi_pm_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	int val = 0;
+
+	if (g_data == NULL) {
+		pr_err("%s: g_data is NULL.\n", __func__);
+		return -EINVAL;
+	}
+
+	if (sscanf(buf, "%d", &val) != 1) {
+		pr_err("%s, input parameter count was wrong.\n", __func__);
+		return -EINVAL;
+	}
+
+	if (val == 1) {
+		vfsspi_suspend(g_data);
+	} else if (val == 0) {
+		vfsspi_hardReset(g_data);
+	} else {
+		pr_err("%s, input value was not accepted.\n", __func__);
+		return -EINVAL;
+	}
+	return count;
+}
+
 static DEVICE_ATTR(type_check, S_IRUGO,
 	vfsspi_type_check_show, NULL);
 static DEVICE_ATTR(vendor, S_IRUGO,
@@ -1603,6 +1694,12 @@ static DEVICE_ATTR(adm, S_IRUGO,
 static DEVICE_ATTR(retain_pin, S_IRUGO | S_IWUSR | S_IWGRP,
 	vfsspi_retain_show, vfsspi_retain_store);
 #endif
+static DEVICE_ATTR(wakelocks, S_IRUGO | S_IWUSR | S_IWGRP,
+	vfsspi_wakelocks_show, vfsspi_wakelocks_store);
+static DEVICE_ATTR(regulator, S_IWUSR | S_IWGRP,
+	NULL, vfsspi_ioctl_power_store);
+static DEVICE_ATTR(pm, S_IWUSR | S_IWGRP,
+	NULL, vfsspi_pm_store);
 
 static struct device_attribute *fp_attrs[] = {
 	&dev_attr_type_check,
@@ -1612,6 +1709,9 @@ static struct device_attribute *fp_attrs[] = {
 #ifndef ENABLE_SENSORS_FPRINT_SECURE
 	&dev_attr_retain_pin,
 #endif
+	&dev_attr_wakelocks,
+	&dev_attr_regulator,
+	&dev_attr_pm,
 	NULL,
 };
 #endif
