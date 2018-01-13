@@ -322,13 +322,15 @@ static int cpufreq_nexus_timer(struct cpufreq_nexus_cpuinfo *cpuinfo, struct cpu
 					nexus_debug("%s: cpu%d: up load          = %d\n", __func__, cpu, tunables->up_load);
 
 					// load-to-step
-					lts_trigger_load = tunables->up_load + (tunables->up_load - ((tunables->up_load * 100) / tunables->up_load_to_step_ratio));
-					nexus_debug("%s: cpu%d: lts up trg load  = %d\n", __func__, cpu, lts_trigger_load);
-					if (load >= lts_trigger_load) {
-						int lts_ratio = DIV_ROUND_UP(lts_trigger_load * 100, load * 100);
+					if (tunables->up_load_to_step_ratio > 0) {
+						lts_trigger_load = tunables->up_load + (tunables->up_load - ((tunables->up_load * 100) / tunables->up_load_to_step_ratio));
+						nexus_debug("%s: cpu%d: lts up trg load  = %d\n", __func__, cpu, lts_trigger_load);
+						if (load >= lts_trigger_load) {
+							int lts_ratio = DIV_ROUND_UP(lts_trigger_load * 100, load * 100);
 
-						steps += lts_ratio * tunables->up_load_to_step_elevation;
-						nexus_debug("%s: cpu%d: lts up trg       = %d / %d\n", __func__, cpu, lts_ratio, steps);
+							steps += lts_ratio * tunables->up_load_to_step_elevation;
+							nexus_debug("%s: cpu%d: lts up trg       = %d / %d\n", __func__, cpu, lts_ratio, steps);
+						}
 					}
 
 					freq_signed = (int)freq + (steps * (int)tunables->frequency_step);
@@ -352,13 +354,15 @@ static int cpufreq_nexus_timer(struct cpufreq_nexus_cpuinfo *cpuinfo, struct cpu
 					nexus_debug("%s: cpu%d: down load        = %d\n", __func__, cpu, tunables->down_load);
 
 					// load-to-step
-					lts_trigger_load = ((tunables->down_load * 100) / tunables->down_load_to_step_ratio);
-					nexus_debug("%s: cpu%d: lts dwn trg load = %d\n", __func__, cpu, lts_trigger_load);
-					if (load <= lts_trigger_load) {
-						int lts_ratio = DIV_ROUND_UP(lts_trigger_load * 100, load * 100);
+					if (tunables->down_load_to_step_ratio > 0) {
+						lts_trigger_load = ((tunables->down_load * 100) / tunables->down_load_to_step_ratio);
+						nexus_debug("%s: cpu%d: lts dwn trg load = %d\n", __func__, cpu, lts_trigger_load);
+						if (load <= lts_trigger_load) {
+							int lts_ratio = DIV_ROUND_UP(lts_trigger_load * 100, load * 100);
 
-						steps += lts_ratio * tunables->down_load_to_step_elevation;
-						nexus_debug("%s: cpu%d: lts dwn trg        = %d / %d\n", __func__, cpu, lts_ratio, steps);
+							steps += lts_ratio * tunables->down_load_to_step_elevation;
+							nexus_debug("%s: cpu%d: lts dwn trg        = %d / %d\n", __func__, cpu, lts_ratio, steps);
+						}
 					}
 
 					freq_signed = (int)freq - (steps * (int)tunables->frequency_step);
