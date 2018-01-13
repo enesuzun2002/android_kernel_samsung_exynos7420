@@ -171,6 +171,10 @@ struct cpufreq_interactive_tunables {
 #define DEFAULT_TIMER_SLACK (4 * DEFAULT_TIMER_RATE)
 	int timer_slack_val;
 	bool io_is_busy;
+	/* Minimal frequency selected */
+	unsigned int freq_min;
+	/* Maximal frequency selected */
+	unsigned int freq_max;
 
 #define TASK_NAME_LEN 15
 	/* realtime thread handles frequency scaling */
@@ -794,6 +798,22 @@ static void cpufreq_interactive_timer(unsigned long data)
 		pcpu->floor_freq = new_freq;
 		pcpu->floor_validate_time = now;
 	}
+
+	/*
+	 * Set an upper limit for the frequency. Used to replace
+	 * "scaling_max_freq" because the kernel does alter the value
+	 * somewhere the whole time so we can't probably set it.
+	 */
+	if (new_freq > tunables->freq_max)
+		new_freq = tunables->freq_max;
+
+	/*
+	 * Set a lower limit for the frequency. Used to replace
+	 * "scaling_min_freq" because the kernel does alter the value
+	 * somewhere the whole time so we can't probably set it.
+	 */
+	if (new_freq < tunables->freq_min)
+		new_freq = tunables->freq_min;
 
 	if (pcpu->target_freq == new_freq &&
 			pcpu->target_freq <= pcpu->policy->cur) {
@@ -1557,6 +1577,44 @@ static ssize_t store_io_is_busy(struct cpufreq_interactive_tunables *tunables,
 	return count;
 }
 
+static ssize_t show_freq_min(struct cpufreq_interactive_tunables *tunables,
+		char *buf)
+{
+	return sprintf(buf, "%u\n", tunables->freq_min);
+}
+
+static ssize_t store_freq_min(struct cpufreq_interactive_tunables *tunables,
+		const char *buf, size_t count)
+{
+	int ret;
+	unsigned long val;
+
+	ret = kstrtoul(buf, 0, &val);
+	if (ret < 0)
+		return ret;
+	tunables->freq_min = val;
+	return count;
+}
+
+static ssize_t show_freq_max(struct cpufreq_interactive_tunables *tunables,
+		char *buf)
+{
+	return sprintf(buf, "%u\n", tunables->freq_max);
+}
+
+static ssize_t store_freq_max(struct cpufreq_interactive_tunables *tunables,
+		const char *buf, size_t count)
+{
+	int ret;
+	unsigned long val;
+
+	ret = kstrtoul(buf, 0, &val);
+	if (ret < 0)
+		return ret;
+	tunables->freq_max = val;
+	return count;
+}
+
 #ifdef CONFIG_MODE_AUTO_CHANGE
 static ssize_t show_mode(struct cpufreq_interactive_tunables
 		*tunables, char *buf)
@@ -1915,6 +1973,8 @@ show_store_gov_pol_sys(boost);
 store_gov_pol_sys(boostpulse);
 show_store_gov_pol_sys(boostpulse_duration);
 show_store_gov_pol_sys(io_is_busy);
+show_store_gov_pol_sys(freq_min);
+show_store_gov_pol_sys(freq_max);
 
 #ifdef CONFIG_MODE_AUTO_CHANGE
 show_store_gov_pol_sys(mode);
@@ -1957,6 +2017,8 @@ gov_sys_pol_attr_rw(timer_slack);
 gov_sys_pol_attr_rw(boost);
 gov_sys_pol_attr_rw(boostpulse_duration);
 gov_sys_pol_attr_rw(io_is_busy);
+gov_sys_pol_attr_rw(freq_min);
+gov_sys_pol_attr_rw(freq_max);
 #ifdef CONFIG_MODE_AUTO_CHANGE
 gov_sys_pol_attr_rw(mode);
 gov_sys_pol_attr_rw(enforced_mode);
@@ -2006,6 +2068,8 @@ static struct attribute *interactive_attributes_gov_sys[] = {
 	&boostpulse_gov_sys.attr,
 	&boostpulse_duration_gov_sys.attr,
 	&io_is_busy_gov_sys.attr,
+	&freq_min_gov_sys.attr,
+	&freq_max_gov_sys.attr,
 #ifdef CONFIG_MODE_AUTO_CHANGE
 	&mode_gov_sys.attr,
 	&enforced_mode_gov_sys.attr,
@@ -2046,6 +2110,8 @@ static struct attribute *interactive_attributes_gov_pol[] = {
 	&boostpulse_gov_pol.attr,
 	&boostpulse_duration_gov_pol.attr,
 	&io_is_busy_gov_pol.attr,
+	&freq_min_gov_pol.attr,
+	&freq_max_gov_pol.attr,
 #ifdef CONFIG_MODE_AUTO_CHANGE
 	&mode_gov_pol.attr,
 	&enforced_mode_gov_pol.attr,
@@ -2235,6 +2301,8 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 			tunables->single_exit_load = DEFAULT_TARGET_LOAD;
 			tunables->single_cluster0_min_freq = DEFAULT_SINGLE_CLUSTER0_MIN_FREQ;
 			tunables->multi_cluster0_min_freq = DEFAULT_MULTI_CLUSTER0_MIN_FREQ;
+			tunables->freq_min = policy->min;
+			tunables->freq_max = policy->max;
 
 			cpufreq_param_set_init(tunables);
 #endif
