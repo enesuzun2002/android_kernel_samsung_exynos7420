@@ -174,7 +174,7 @@ static int mdm_subsys_powerup(const struct subsys_desc *crashed_subsys)
 	if (!wait_for_completion_timeout(&mdm_drv->boot_done,
 		msecs_to_jiffies(60000))) {
 		dev_err(&esoc_clink->dev, "Unable to boot\n");
-		panic("CP BOOT UP FAIL - NEED CP DUMP");
+		return -EIO;
 	}
 
 	if (mdm_drv->boot_fail) {
