@@ -368,10 +368,14 @@ int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 			cs_dbs_info->down_skip = 0;
 			cs_dbs_info->enable = 1;
 			cs_dbs_info->requested_freq = policy->cur;
+			cs_tuners->freq_min = policy->min;
+			cs_tuners->freq_max = policy->max;
 		} else {
 			od_dbs_info->rate_mult = 1;
 			od_dbs_info->sample_type = OD_NORMAL_SAMPLE;
 			od_ops->powersave_bias_init_cpu(cpu);
+			od_tuners->freq_min = policy->min;
+			od_tuners->freq_max = policy->max;
 		}
 
 		mutex_unlock(&dbs_data->mutex);

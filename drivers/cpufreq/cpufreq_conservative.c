@@ -82,6 +82,13 @@ static void cs_check_cpu(int cpu, unsigned int load)
 		if (dbs_info->requested_freq > policy->max)
 			dbs_info->requested_freq = policy->max;
 
+		// apply tunables
+		if (dbs_info->requested_freq < cs_tuners->freq_min)
+			dbs_info->requested_freq = cs_tuners->freq_min;
+
+		if (dbs_info->requested_freq > cs_tuners->freq_max)
+			dbs_info->requested_freq = cs_tuners->freq_max;
+
 		__cpufreq_driver_target(policy, dbs_info->requested_freq,
 			CPUFREQ_RELATION_H);
 		return;
@@ -103,6 +110,13 @@ static void cs_check_cpu(int cpu, unsigned int load)
 		dbs_info->requested_freq -= get_freq_target(cs_tuners, policy);
 		if (dbs_info->requested_freq < policy->min)
 			dbs_info->requested_freq = policy->min;
+
+		// apply tunables
+		if (dbs_info->requested_freq < cs_tuners->freq_min)
+			dbs_info->requested_freq = cs_tuners->freq_min;
+
+		if (dbs_info->requested_freq > cs_tuners->freq_max)
+			dbs_info->requested_freq = cs_tuners->freq_max;
 
 		__cpufreq_driver_target(policy, dbs_info->requested_freq,
 				CPUFREQ_RELATION_L);
@@ -275,6 +289,32 @@ static ssize_t store_freq_step(struct dbs_data *dbs_data, const char *buf,
 	return count;
 }
 
+static ssize_t store_freq_min(struct dbs_data *dbs_data, const char *buf,
+		size_t count)
+{
+	struct od_dbs_tuners *od_tuners = dbs_data->tuners;
+	unsigned int input;
+
+	if (sscanf(buf, "%u", &input) != 1)
+		return -EINVAL;
+
+	od_tuners->freq_min = input;
+	return count;
+}
+
+static ssize_t store_freq_max(struct dbs_data *dbs_data, const char *buf,
+		size_t count)
+{
+	struct od_dbs_tuners *od_tuners = dbs_data->tuners;
+	unsigned int input;
+
+	if (sscanf(buf, "%u", &input) != 1)
+		return -EINVAL;
+
+	od_tuners->freq_max = input;
+	return count;
+}
+
 show_store_one(cs, sampling_rate);
 show_store_one(cs, sampling_down_factor);
 show_store_one(cs, up_threshold);
@@ -282,6 +322,8 @@ show_store_one(cs, down_threshold);
 show_store_one(cs, ignore_nice_load);
 show_store_one(cs, freq_step);
 declare_show_sampling_rate_min(cs);
+show_store_one(cs, freq_min);
+show_store_one(cs, freq_max);
 
 gov_sys_pol_attr_rw(sampling_rate);
 gov_sys_pol_attr_rw(sampling_down_factor);
@@ -290,6 +332,8 @@ gov_sys_pol_attr_rw(down_threshold);
 gov_sys_pol_attr_rw(ignore_nice_load);
 gov_sys_pol_attr_rw(freq_step);
 gov_sys_pol_attr_ro(sampling_rate_min);
+gov_sys_pol_attr_rw(freq_min);
+gov_sys_pol_attr_rw(freq_max);
 
 static struct attribute *dbs_attributes_gov_sys[] = {
 	&sampling_rate_min_gov_sys.attr,
@@ -299,6 +343,8 @@ static struct attribute *dbs_attributes_gov_sys[] = {
 	&down_threshold_gov_sys.attr,
 	&ignore_nice_load_gov_sys.attr,
 	&freq_step_gov_sys.attr,
+	&freq_min_gov_sys.attr,
+	&freq_max_gov_sys.attr,
 	NULL
 };
 
@@ -315,6 +361,8 @@ static struct attribute *dbs_attributes_gov_pol[] = {
 	&down_threshold_gov_pol.attr,
 	&ignore_nice_load_gov_pol.attr,
 	&freq_step_gov_pol.attr,
+	&freq_min_gov_pol.attr,
+	&freq_max_gov_pol.attr,
 	NULL
 };
 

@@ -171,6 +171,8 @@ struct od_dbs_tuners {
 	unsigned int up_threshold;
 	unsigned int powersave_bias;
 	unsigned int io_is_busy;
+	unsigned int freq_min;
+	unsigned int freq_max;
 };
 
 struct cs_dbs_tuners {
@@ -180,6 +182,8 @@ struct cs_dbs_tuners {
 	unsigned int up_threshold;
 	unsigned int down_threshold;
 	unsigned int freq_step;
+	unsigned int freq_min;
+	unsigned int freq_max;
 };
 
 /* Common Governer data across policies */
