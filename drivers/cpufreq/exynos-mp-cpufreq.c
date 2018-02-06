@@ -1793,6 +1793,10 @@ static int exynos_cluster0_min_qos_handler(struct notifier_block *b, unsigned lo
 	threshold_freq = cpufreq_interactive_get_hispeed_freq(0);
 	if (!threshold_freq)
 		threshold_freq = 1000000;	/* 1.0GHz */
+#elif defined(CONFIG_CPU_FREQ_GOV_CAFACTIVE)
+	threshold_freq = cpufreq_cafactive_get_hispeed_freq(0);
+	if (!threshold_freq)
+		threshold_freq = 1000000;	/* 1.0GHz */
 #else
 	threshold_freq = 1000000;	/* 1.0GHz */
 #endif
@@ -2219,7 +2223,7 @@ err_init:
 	return ret;
 }
 
-#ifdef CONFIG_CPU_FREQ_DEFAULT_GOV_INTERACTIVE
+#if defined(CONFIG_CPU_FREQ_DEFAULT_GOV_INTERACTIVE) || defined(CONFIG_CPU_FREQ_DEFAULT_GOV_CAFACTIVE)
 device_initcall(exynos_cpufreq_init);
 #else
 late_initcall(exynos_cpufreq_init);

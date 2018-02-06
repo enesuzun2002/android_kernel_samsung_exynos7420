@@ -8,4 +8,8 @@ if SOC_SAMSUNG
 config EXYNOS_CHIPID
 	bool "Exynos Chip ID Driver Support"
 	depends on ARCH_EXYNOS
+
+config STATE_NOTIFIER
+    	bool "State Notifier"
+
 endif #SOC_SAMSUNG
