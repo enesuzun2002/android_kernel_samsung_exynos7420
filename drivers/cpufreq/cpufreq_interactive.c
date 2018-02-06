@@ -2384,6 +2384,12 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 		if (!tunables->hispeed_freq)
 			tunables->hispeed_freq = policy->max;
 
+		if (!tunables->freq_max)
+			tunables->freq_max = policy->max;
+
+		if (!tunables->freq_min)
+			tunables->freq_min = policy->min;
+
 #ifdef CONFIG_MODE_AUTO_CHANGE
 		for (j = 0; j < MAX_PARAM_SET; j++) {
 			if (!tunables->hispeed_freq_set[j])
