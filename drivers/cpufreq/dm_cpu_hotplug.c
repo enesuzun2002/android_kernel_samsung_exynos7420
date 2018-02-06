@@ -544,7 +544,6 @@ static int __ref __cpu_hotplug(bool out_flag, enum hotplug_cmd cmd)
 		break;
 	}
 #endif
-	int tmp_nr_sleep_prepare_cpus = 0;
 
 	if (exynos_dm_hotplug_disabled())
 		return 0;
@@ -879,8 +878,6 @@ void event_hotplug_in(void)
 static int __ref exynos_dm_hotplug_notifier(struct notifier_block *notifier,
 					unsigned long pm_event, void *v)
 {
-	int i, j;
-
 	switch (pm_event) {
 	case PM_SUSPEND_PREPARE:
 		mutex_lock(&thread_lock);
