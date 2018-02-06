@@ -99,6 +99,14 @@ static void cs_check_cpu(int cpu, unsigned int load)
 			dbs_info->requested_freq = policy->min;
 			boost_counter = 0;
 		}
+
+		// apply tunables
+		if (dbs_info->requested_freq < cs_tuners->freq_min)
+			dbs_info->requested_freq = cs_tuners->freq_min;
+
+		if (dbs_info->requested_freq > cs_tuners->freq_max)
+			dbs_info->requested_freq = cs_tuners->freq_max;
+
 		__cpufreq_driver_target(policy, dbs_info->requested_freq,
 				CPUFREQ_RELATION_L);
 		return;
@@ -117,6 +125,13 @@ static void cs_check_cpu(int cpu, unsigned int load)
 			dbs_info->requested_freq = policy->min;
 			boost_counter = 0;
 		}
+
+		// apply tunables
+		if (dbs_info->requested_freq < cs_tuners->freq_min)
+			dbs_info->requested_freq = cs_tuners->freq_min;
+
+		if (dbs_info->requested_freq > cs_tuners->freq_max)
+			dbs_info->requested_freq = cs_tuners->freq_max;
 
 		__cpufreq_driver_target(policy, dbs_info->requested_freq,
 				CPUFREQ_RELATION_L);
@@ -375,6 +390,32 @@ static ssize_t store_boost_ceiling(struct dbs_data *dbs_data, const char *buf,
 	return count;
 }
 
+static ssize_t store_freq_min(struct dbs_data *dbs_data, const char *buf,
+		size_t count)
+{
+	struct cs_dbs_tuners *cs_tuners = dbs_data->tuners;
+	unsigned int input;
+
+	if (sscanf(buf, "%u", &input) != 1)
+		return -EINVAL;
+
+	cs_tuners->freq_min = input;
+	return count;
+}
+
+static ssize_t store_freq_max(struct dbs_data *dbs_data, const char *buf,
+		size_t count)
+{
+	struct cs_dbs_tuners *cs_tuners = dbs_data->tuners;
+	unsigned int input;
+
+	if (sscanf(buf, "%u", &input) != 1)
+		return -EINVAL;
+
+	cs_tuners->freq_max = input;
+	return count;
+}
+
 show_store_one(cs, sampling_rate);
 show_store_one(cs, up_threshold);
 show_store_one(cs, down_threshold);
@@ -384,6 +425,8 @@ show_store_one(cs, freq_step);
 show_store_one(cs, boost_enabled);
 show_store_one(cs, boost_count);
 show_store_one(cs, boost_ceiling);
+show_store_one(cs, freq_min);
+show_store_one(cs, freq_max);
 
 gov_sys_pol_attr_rw(sampling_rate);
 gov_sys_pol_attr_rw(up_threshold);
@@ -394,6 +437,8 @@ gov_sys_pol_attr_rw(freq_step);
 gov_sys_pol_attr_rw(boost_enabled);
 gov_sys_pol_attr_rw(boost_count);
 gov_sys_pol_attr_rw(boost_ceiling);
+gov_sys_pol_attr_rw(freq_min);
+gov_sys_pol_attr_rw(freq_max);
 
 static struct attribute *dbs_attributes_gov_sys[] = {
 	&sampling_rate_gov_sys.attr,
@@ -405,6 +450,8 @@ static struct attribute *dbs_attributes_gov_sys[] = {
 	&boost_enabled_gov_sys.attr,
 	&boost_count_gov_sys.attr,
 	&boost_ceiling_gov_sys.attr,
+	&freq_min_gov_sys.attr,
+	&freq_max_gov_sys.attr,
 	NULL
 };
 
@@ -423,6 +470,8 @@ static struct attribute *dbs_attributes_gov_pol[] = {
 	&boost_enabled_gov_pol.attr,
 	&boost_count_gov_pol.attr,
 	&boost_ceiling_gov_pol.attr,
+	&freq_min_gov_pol.attr,
+	&freq_max_gov_pol.attr,
 	NULL
 };
 
@@ -466,6 +515,8 @@ static struct cs_dbs_tuners *alloc_tuners(struct cpufreq_policy *policy)
 	tuners->boost_enabled = DEF_BOOST_ENABLED;
 	tuners->boost_count = DEF_BOOST_COUNT;
 	tuners->boost_ceiling = DEF_BOOST_CEILING;
+	tuners->freq_min = policy->min;
+	tuners->freq_max = policy->max;
 
 	save_tuners(policy, tuners);
 

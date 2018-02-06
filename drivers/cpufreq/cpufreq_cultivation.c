@@ -79,6 +79,9 @@ struct cpufreq_cultivation_tunables {
 	/* Hi speed to bump to from lo speed when load burst (default max) */
 	unsigned int hispeed_freq;
 
+	unsigned int freq_min;
+	unsigned int freq_max;
+
 	/* Go to hi speed when CPU load at or above this value. */
 #define DEFAULT_GO_HISPEED_LOAD 99
 	unsigned long go_hispeed_load;
@@ -504,6 +507,12 @@ static void cpufreq_cultivation_timer(unsigned long data)
 		    new_freq >= pcpu->policy->cur)
 			pcpu->loc_floor_val_time = now;
 	}
+
+	if (new_freq > tunables->freq_max)
+		new_freq = tunables->freq_max;
+
+	if (new_freq < tunables->freq_min)
+		new_freq = tunables->freq_min;
 
 	if (pcpu->target_freq == new_freq &&
 			pcpu->target_freq <= pcpu->policy->cur) {
@@ -1047,6 +1056,46 @@ static ssize_t store_timer_rate_screenoff(struct cpufreq_cultivation_tunables
        return count;
 }
 
+static ssize_t show_freq_min(struct cpufreq_cultivation_tunables
+               *tunables, char *buf)
+{
+       return sprintf(buf, "%lu\n", tunables->freq_min);
+}
+
+static ssize_t store_freq_min(struct cpufreq_cultivation_tunables
+               *tunables, const char *buf, size_t count)
+{
+	int ret;
+	unsigned int val, val_round;
+
+	ret = kstrtoul(buf, 0, &val);
+	if (ret < 0)
+		return ret;
+
+	tunables->freq_min = val_round;
+	return count;
+}
+
+static ssize_t show_freq_max(struct cpufreq_cultivation_tunables
+               *tunables, char *buf)
+{
+       return sprintf(buf, "%lu\n", tunables->freq_max);
+}
+
+static ssize_t store_freq_max(struct cpufreq_cultivation_tunables
+               *tunables, const char *buf, size_t count)
+{
+	int ret;
+	unsigned int val, val_round;
+
+	ret = kstrtoul(buf, 0, &val);
+	if (ret < 0)
+		return ret;
+
+	tunables->freq_max = val_round;
+	return count;
+}
+
 /*
  * Create show/store routines
  * - sys: One governor instance for complete SYSTEM
@@ -1096,6 +1145,8 @@ show_store_gov_pol_sys(align_windows);
 show_store_gov_pol_sys(max_freq_hysteresis);
 show_store_gov_pol_sys(fastlane);
 show_store_gov_pol_sys(fastlane_threshold);
+show_store_gov_pol_sys(freq_min);
+show_store_gov_pol_sys(freq_max);
 
 #define gov_sys_attr_rw(_name)						\
 static struct global_attr _name##_gov_sys =				\
@@ -1122,6 +1173,8 @@ gov_sys_pol_attr_rw(align_windows);
 gov_sys_pol_attr_rw(max_freq_hysteresis);
 gov_sys_pol_attr_rw(fastlane);
 gov_sys_pol_attr_rw(fastlane_threshold);
+gov_sys_pol_attr_rw(freq_min);
+gov_sys_pol_attr_rw(freq_max);
 
 /* One Governor instance for entire system */
 static struct attribute *cultivation_attributes_gov_sys[] = {
@@ -1138,6 +1191,8 @@ static struct attribute *cultivation_attributes_gov_sys[] = {
 	&max_freq_hysteresis_gov_sys.attr,
 	&fastlane_gov_sys.attr,
 	&fastlane_threshold_gov_sys.attr,
+	&freq_min_gov_sys.attr,
+	&freq_max_gov_sys.attr,
 	NULL,
 };
 
@@ -1161,6 +1216,8 @@ static struct attribute *cultivation_attributes_gov_pol[] = {
 	&max_freq_hysteresis_gov_pol.attr,
 	&fastlane_gov_pol.attr,
 	&fastlane_threshold_gov_pol.attr,
+	&freq_min_gov_pol.attr,
+	&freq_max_gov_pol.attr,
 	NULL,
 };
 
@@ -1231,6 +1288,8 @@ static struct cpufreq_cultivation_tunables *alloc_tunable(
 	tunables->timer_slack_val = DEFAULT_TIMER_SLACK;
 	tunables->fastlane = false;
 	tunables->fastlane_threshold = 50;
+	tunables->freq_min = policy->min;
+	tunables->freq_max = policy->max;
 
 	spin_lock_init(&tunables->target_loads_lock);
 	spin_lock_init(&tunables->above_hispeed_delay_lock);

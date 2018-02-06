@@ -99,6 +99,8 @@ struct cpufreq_cafactive_tunables {
 	int usage_count;
 	/* Hi speed to bump to from lo speed when load burst (default max) */
 	unsigned int hispeed_freq;
+	unsigned int freq_min;
+	unsigned int freq_max;
 	/* Go to hi speed when CPU load at or above this value. */
 #define DEFAULT_GO_HISPEED_LOAD 99
 	unsigned long go_hispeed_load;
@@ -549,6 +551,12 @@ static void __cpufreq_cafactive_timer(unsigned long data, bool is_notif)
 		    new_freq >= pcpu->policy->cur)
 			pcpu->local_fvtime = now;
 	}
+
+	if (new_freq > tunables->freq_max)
+		new_freq = tunables->freq_max;
+
+	if (new_freq < tunables->freq_min)
+		new_freq = tunables->freq_min;
 
 	if (new_freq == pcpu->policy->max)
 		pcpu->max_freq_hyst_start_time = now;
@@ -1242,6 +1250,44 @@ static ssize_t show_region_time_in_state(struct cpufreq_cafactive_tunables *tuna
 	return len;
 }
 #endif
+
+static ssize_t show_freq_min(struct cpufreq_cafactive_tunables *tunables,
+		char *buf)
+{
+	return sprintf(buf, "%u\n", tunables->freq_min);
+}
+
+static ssize_t store_freq_min(struct cpufreq_cafactive_tunables *tunables,
+		const char *buf, size_t count)
+{
+	int ret;
+	unsigned long val;
+
+	ret = kstrtoul(buf, 0, &val);
+	if (ret < 0)
+		return ret;
+	tunables->freq_min = val;
+	return count;
+}
+
+static ssize_t show_freq_max(struct cpufreq_cafactive_tunables *tunables,
+		char *buf)
+{
+	return sprintf(buf, "%u\n", tunables->freq_max);
+}
+
+static ssize_t store_freq_max(struct cpufreq_cafactive_tunables *tunables,
+		const char *buf, size_t count)
+{
+	int ret;
+	unsigned long val;
+
+	ret = kstrtoul(buf, 0, &val);
+	if (ret < 0)
+		return ret;
+	tunables->freq_max = val;
+	return count;
+}
 /*
  * Create show/store routines
  * - sys: One governor instance for complete SYSTEM
@@ -1294,6 +1340,8 @@ show_store_gov_pol_sys(align_windows);
 #ifdef CONFIG_PMU_COREMEM_RATIO
 show_gov_pol_sys(region_time_in_state);
 #endif
+show_store_gov_pol_sys(freq_min);
+show_store_gov_pol_sys(freq_max);
 #define gov_sys_attr_rw(_name)						\
 static struct global_attr _name##_gov_sys =				\
 __ATTR(_name, 0644, show_##_name##_gov_sys, store_##_name##_gov_sys)
@@ -1318,6 +1366,8 @@ gov_sys_pol_attr_rw(boostpulse_duration);
 gov_sys_pol_attr_rw(io_is_busy);
 gov_sys_pol_attr_rw(max_freq_hysteresis);
 gov_sys_pol_attr_rw(align_windows);
+gov_sys_pol_attr_rw(freq_min);
+gov_sys_pol_attr_rw(freq_max);
 
 static struct global_attr boostpulse_gov_sys =
 	__ATTR(boostpulse, 0200, NULL, store_boostpulse_gov_sys);
@@ -1351,6 +1401,8 @@ static struct attribute *cafactive_attributes_gov_sys[] = {
 #ifdef CONFIG_PMU_COREMEM_RATIO
 	&region_time_in_state_gov_sys.attr,
 #endif
+	&freq_min_gov_sys.attr,
+	&freq_max_gov_sys.attr,
 	NULL,
 };
 
@@ -1377,6 +1429,8 @@ static struct attribute *cafactive_attributes_gov_pol[] = {
 #ifdef CONFIG_PMU_COREMEM_RATIO
 	&region_time_in_state_gov_pol.attr,
 #endif
+	&freq_min_gov_pol.attr,
+	&freq_max_gov_pol.attr,
 	NULL,
 };
 
@@ -1614,6 +1668,12 @@ static int cpufreq_governor_cafactive(struct cpufreq_policy *policy,
 		freq_table = cpufreq_frequency_get_table(policy->cpu);
 		if (!tunables->hispeed_freq)
 			tunables->hispeed_freq = policy->max;
+
+		if (!tunables->freq_min)
+			tunables->freq_min = policy->min;
+
+		if (!tunables->freq_max)
+			tunables->freq_max = policy->max;
 
 		for_each_cpu(j, policy->cpus) {
 			pcpu = &per_cpu(cpuinfo, j);

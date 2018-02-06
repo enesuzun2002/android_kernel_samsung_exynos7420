@@ -77,6 +77,8 @@ struct cpufreq_blu_active_tunables {
 	int usage_count;
 	/* Hi speed to bump to from lo speed when load burst (default max) */
 	unsigned int hispeed_freq;
+	unsigned int freq_min;
+	unsigned int freq_max;
 	/* Go to hi speed when CPU load at or above this value. */
 #define DEFAULT_GO_HISPEED_LOAD 99
 	unsigned long go_hispeed_load;
@@ -462,6 +464,12 @@ static void cpufreq_blu_active_timer(unsigned long data)
 		    new_freq >= pcpu->policy->cur)
 			pcpu->loc_floor_val_time = now;
 	}
+
+	if (new_freq > tunables->freq_max)
+		new_freq = tunables->freq_max;
+
+	if (new_freq < tunables->freq_min)
+		new_freq = tunables->freq_min;
 
 	if (pcpu->target_freq == new_freq &&
 			pcpu->target_freq <= pcpu->policy->cur) {
@@ -957,6 +965,46 @@ static ssize_t store_fastlane_threshold(
 	return count;
 }
 
+static ssize_t show_freq_min(
+		struct cpufreq_blu_active_tunables *tunables, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%d\n", tunables->freq_min);
+}
+
+static ssize_t store_freq_min(
+			struct cpufreq_blu_active_tunables *tunables,
+			const char *buf, size_t count)
+{
+	int ret;
+	unsigned long val;
+
+	ret = kstrtoul(buf, 0, &val);
+	if (ret < 0 || ret > 100)
+		return ret;
+	tunables->freq_min = val;
+	return count;
+}
+
+static ssize_t show_freq_max(
+		struct cpufreq_blu_active_tunables *tunables, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%d\n", tunables->freq_max);
+}
+
+static ssize_t store_freq_max(
+			struct cpufreq_blu_active_tunables *tunables,
+			const char *buf, size_t count)
+{
+	int ret;
+	unsigned long val;
+
+	ret = kstrtoul(buf, 0, &val);
+	if (ret < 0 || ret > 100)
+		return ret;
+	tunables->freq_max = val;
+	return count;
+}
+
 /*
  * Create show/store routines
  * - sys: One governor instance for complete SYSTEM
@@ -1004,6 +1052,8 @@ show_store_gov_pol_sys(io_is_busy);
 show_store_gov_pol_sys(align_windows);
 show_store_gov_pol_sys(fastlane);
 show_store_gov_pol_sys(fastlane_threshold);
+show_store_gov_pol_sys(freq_min);
+show_store_gov_pol_sys(freq_max);
 
 #define gov_sys_attr_rw(_name)						\
 static struct global_attr _name##_gov_sys =				\
@@ -1028,6 +1078,8 @@ gov_sys_pol_attr_rw(io_is_busy);
 gov_sys_pol_attr_rw(align_windows);
 gov_sys_pol_attr_rw(fastlane);
 gov_sys_pol_attr_rw(fastlane_threshold);
+gov_sys_pol_attr_rw(freq_min);
+gov_sys_pol_attr_rw(freq_max);
 
 /* One Governor instance for entire system */
 static struct attribute *blu_active_attributes_gov_sys[] = {
@@ -1042,6 +1094,8 @@ static struct attribute *blu_active_attributes_gov_sys[] = {
 	&align_windows_gov_sys.attr,
 	&fastlane_gov_sys.attr,
 	&fastlane_threshold_gov_sys.attr,
+	&freq_min_gov_sys.attr,
+	&freq_max_gov_sys.attr,
 	NULL,
 };
 
@@ -1063,6 +1117,8 @@ static struct attribute *blu_active_attributes_gov_pol[] = {
 	&align_windows_gov_pol.attr,
 	&fastlane_gov_pol.attr,
 	&fastlane_threshold_gov_pol.attr,
+	&freq_min_gov_pol.attr,
+	&freq_max_gov_pol.attr,
 	NULL,
 };
 
@@ -1233,6 +1289,12 @@ static int cpufreq_governor_blu_active(struct cpufreq_policy *policy,
 		freq_table = cpufreq_frequency_get_table(policy->cpu);
 		if (!tunables->hispeed_freq)
 			tunables->hispeed_freq = policy->max;
+
+		if (!tunables->freq_min)
+			tunables->freq_min = policy->min;
+
+		if (!tunables->freq_max)
+			tunables->freq_max = policy->max;
 
 		for_each_cpu(j, policy->cpus) {
 			pcpu = &per_cpu(cpuinfo, j);
