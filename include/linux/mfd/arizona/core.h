@@ -132,7 +132,6 @@ struct arizona {
 	struct regulator_bulk_data core_supplies[ARIZONA_MAX_CORE_SUPPLIES];
 	struct regulator *dcvdd;
 	struct notifier_block dcvdd_notifier;
-	bool has_fully_powered_off;
 
 	struct arizona_pdata pdata;
 
@@ -173,6 +172,7 @@ struct arizona {
 #endif
 
 	struct mutex rate_lock;
+	struct mutex dspclk_ena_lock;
 };
 
 #define ARIZONA_DVFS_SR1_RQ          0x00000001
