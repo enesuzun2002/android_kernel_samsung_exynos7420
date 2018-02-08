@@ -325,12 +325,6 @@ static void arizona_extcon_hp_clamp(struct arizona_extcon_info *info,
 				"Failed to set TST_CAP_SEL: %d\n",
 				 ret);
 		break;
-	case CS47L35:
-		/* check whether audio is routed to EPOUT, do not disable OUT1
-		 * in that case */
-		regmap_read(arizona->regmap, ARIZONA_OUTPUT_ENABLES_1, &ep_sel);
-		ep_sel &= ARIZONA_EP_SEL_MASK;
-		/* fall through to next step to set common variables */
 	case WM8285:
 	case WM1840:
 		edre_reg = CLEARWATER_EDRE_MANUAL;
@@ -2360,26 +2354,40 @@ static void arizona_micd_handler(struct work_struct *work)
 			     struct arizona_extcon_info,
 			     micd_detect_work.work);
 	struct arizona *arizona = info->arizona;
+	int mode;
 	int ret;
 
 	arizona_jds_cancel_timeout(info);
 
 	mutex_lock(&info->lock);
 
+	/* Must check that we are in a micd state before accessing
+	 * any codec registers
+	 */
+	mode = arizona_jds_get_mode(info);
+	switch (mode) {
+	case ARIZONA_ACCDET_MODE_MIC:
+	case ARIZONA_ACCDET_MODE_ADC:
+		break;
+	default:
+		goto spurious;
+	}
+
 	if (arizona_jack_present(info, NULL) <= 0)
 		goto spurious;
 
 	arizona_hs_mic_control(arizona, ARIZONA_MIC_MUTE);
 
-	switch (arizona_jds_get_mode(info)) {
+	switch (mode) {
 	case ARIZONA_ACCDET_MODE_MIC:
 		ret = arizona_micd_read(info);
 		break;
 	case ARIZONA_ACCDET_MODE_ADC:
 		ret = arizona_micd_adc_read(info);
 		break;
-	default:
-		goto spurious;
+	default:	/* we can't get here but compiler still warns */
+		ret = 0;
+		break;
 	}
 
 	if (ret == -EAGAIN)
@@ -2451,11 +2459,12 @@ static irqreturn_t arizona_micdet(int irq, void *data)
 
 	mutex_unlock(&info->lock);
 
-	if (debounce)
-		schedule_delayed_work(&info->micd_detect_work,
-				      msecs_to_jiffies(debounce));
-	else
-		arizona_micd_handler(&info->micd_detect_work.work);
+	/* Defer to the workqueue to ensure serialization
+	 * and prevent race conditions if an IRQ occurs while
+	 * running the delayed work
+	 */
+	schedule_delayed_work(&info->micd_detect_work,
+				msecs_to_jiffies(debounce));
 
 	return IRQ_HANDLED;
 }
@@ -2711,6 +2720,8 @@ static irqreturn_t arizona_jackdet(int irq, void *data)
 		regmap_update_bits(arizona->regmap, reg, mask, 0);
 	} else {
 		dev_info(arizona->dev, "Detected jack removal\n");
+
+		arizona_hs_mic_control(arizona, ARIZONA_MIC_MUTE);
 
 		arizona_hs_mic_control(arizona, ARIZONA_MIC_MUTE);
 

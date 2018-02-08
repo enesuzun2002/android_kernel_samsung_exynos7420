@@ -351,7 +351,7 @@ static struct wm_adsp_fw_caps ez2control_caps[] = {
 	{
 		.id = SND_AUDIOCODEC_PCM,
 		.desc = {
-			.max_ch = 1,
+			.max_ch = 2,
 			.sample_rates = { 16000 },
 			.num_sample_rates = 1,
 			.formats = SNDRV_PCM_FMTBIT_S16_LE,
@@ -698,6 +698,49 @@ static unsigned int wm_adsp_region_to_reg(struct wm_adsp_region const *mem,
 		WARN_ON(NULL != "Unknown memory region type");
 		return offset;
 	}
+}
+
+static void wm_adsp2_show_fw_status(struct wm_adsp *dsp)
+{
+	u16 scratch[4];
+	int ret;
+
+	ret = regmap_raw_read(dsp->regmap, dsp->base + ADSP2_SCRATCH0,
+				scratch, sizeof(scratch));
+
+	if (ret) {
+		adsp_err(dsp, "Failed to read SCRATCH regs: %d\n", ret);
+		return;
+	}
+
+	adsp_dbg(dsp, "FW SCRATCH 0:0x%x 1:0x%x 2:0x%x 3:0x%x\n",
+		 be16_to_cpu(scratch[0]),
+		 be16_to_cpu(scratch[1]),
+		 be16_to_cpu(scratch[2]),
+		 be16_to_cpu(scratch[3]));
+}
+
+static void wm_adsp2v2_show_fw_status(struct wm_adsp *dsp)
+{
+	u32 scratch[2];
+	int ret;
+
+	ret = regmap_raw_read(dsp->regmap, dsp->base + ADSP2V2_SCRATCH0_1,
+				scratch, sizeof(scratch));
+
+	if (ret) {
+		adsp_err(dsp, "Failed to read SCRATCH regs: %d\n", ret);
+		return;
+	}
+
+	scratch[0] = be32_to_cpu(scratch[0]);
+	scratch[1] = be32_to_cpu(scratch[1]);
+
+	adsp_dbg(dsp, "FW SCRATCH 0:0x%x 1:0x%x 2:0x%x 3:0x%x\n",
+		 scratch[0] & 0xFFFF,
+		 scratch[0] >> 16,
+		 scratch[1] & 0xFFFF,
+		 scratch[1] >> 16);
 }
 
 static int wm_coeff_info(struct snd_kcontrol *kcontrol,
@@ -2381,7 +2424,6 @@ int wm_adsp2_event(struct snd_soc_dapm_widget *w,
 	struct wm_adsp *dsp = &dsps[w->shift];
 	struct wm_adsp_alg_region *alg_region;
 	struct wm_coeff_ctl *ctl;
-	unsigned int scratch1 = 0xFFFFFFFF;
 	int ret;
 
 	switch (event) {
@@ -2401,22 +2443,15 @@ int wm_adsp2_event(struct snd_soc_dapm_widget *w,
 		break;
 
 	case SND_SOC_DAPM_PRE_PMD:
-		/* Capture DSP_SCRATCH1, it can be useful for analysis */
+		/* Log firmware state, it can be useful for analysis */
 		switch (dsp->rev) {
 		case 0:
-			ret = regmap_read(dsp->regmap,
-					  dsp->base + ADSP2_SCRATCH1,
-					  &scratch1);
+			wm_adsp2_show_fw_status(dsp);
 			break;
 		default:
-			ret = regmap_read(dsp->regmap,
-					  dsp->base + ADSP2V2_SCRATCH0_1,
-					  &scratch1);
+			wm_adsp2v2_show_fw_status(dsp);
 			break;
-		}
-
-		if (ret < 0)
-			adsp_err(dsp, "Failed to read SCRATCH1 %d\n", ret);
+		};
 
 		if (dsp->fw_features.shutdown)
 			wm_adsp_edac_shutdown(dsp);
@@ -2468,7 +2503,7 @@ int wm_adsp2_event(struct snd_soc_dapm_widget *w,
 			kfree(alg_region);
 		}
 
-		adsp_info(dsp, "Shutdown complete (SCRATCH1:0x%x)\n", scratch1);
+		adsp_info(dsp, "Shutdown complete\n");
 		break;
 
 	default:
@@ -3337,6 +3372,39 @@ static ssize_t wm_adsp_debugfs_fwver_read(struct file *file,
 					dsp->fw_id_version);
 }
 
+static ssize_t wm_adsp_debugfs_buffererror_read(struct file *file,
+					    char __user *user_buf,
+					    size_t count, loff_t *ppos)
+{
+	struct wm_adsp *dsp = file->private_data;
+	int ret;
+	u32 host_buffer_error;
+
+	if (!dsp->card)
+		return 0;
+
+	mutex_lock(&dsp->card->dapm_mutex);
+
+	if (!dsp->running || !dsp->host_buf_ptr) {
+		mutex_unlock(&dsp->card->dapm_mutex);
+		return 0;
+	}
+
+	ret = wm_adsp_host_buffer_read(dsp,
+				       HOST_BUFFER_FIELD(error),
+				       &host_buffer_error);
+
+	mutex_unlock(&dsp->card->dapm_mutex);
+
+	if (ret < 0) {
+		adsp_err(dsp, "Failed to read host buffer: %d\n", ret);
+		return 0;
+	}
+
+	return wm_adsp_debugfs_x32_read(dsp, user_buf, count, ppos,
+					host_buffer_error);
+}
+
 static const struct {
 	const char *name;
 	const struct file_operations fops;
@@ -3378,9 +3446,15 @@ static const struct {
 	},
 };
 
+static const struct file_operations wm_adsp_debugfs_buffererror_fops = {
+	.open = simple_open,
+	.read = wm_adsp_debugfs_buffererror_read,
+};
+
 void wm_adsp_init_debugfs(struct wm_adsp *dsp, struct snd_soc_codec *codec)
 {
 	struct dentry *root = NULL;
+	struct dentry *buffer_dentry = NULL;
 	char *root_name;
 	int i;
 
@@ -3406,6 +3480,14 @@ void wm_adsp_init_debugfs(struct wm_adsp *dsp, struct snd_soc_codec *codec)
 					 &wm_adsp_debugfs_fops[i].fops))
 			goto err;
 	}
+
+	buffer_dentry = debugfs_create_dir("buffer0", root);
+	if (!buffer_dentry)
+		goto err;
+
+	if (!debugfs_create_file("error", S_IRUGO, buffer_dentry, dsp,
+				 &wm_adsp_debugfs_buffererror_fops))
+		goto err;
 
 	dsp->debugfs_root = root;
 	return;

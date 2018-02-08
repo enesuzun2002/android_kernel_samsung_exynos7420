@@ -21,7 +21,7 @@
 #define WM5102_NUM_AOD_ISR 2
 #define WM5102_NUM_ISR 5
 
-static const struct reg_default wm5102_reva_patch[] = {
+static const struct reg_sequence wm5102_reva_patch[] = {
 	{ 0x80, 0x0003 },
 	{ 0x221, 0x0090 },
 	{ 0x211, 0x0014 },
@@ -57,7 +57,7 @@ static const struct reg_default wm5102_reva_patch[] = {
 	{ 0x80, 0x0000 },
 };
 
-static const struct reg_default wm5102_revb_patch[] = {
+static const struct reg_sequence wm5102_revb_patch[] = {
 	{ 0x19, 0x0001 },
 	{ 0x80, 0x0003 },
 	{ 0x081, 0xE022 },
@@ -77,13 +77,13 @@ static const struct reg_default wm5102_revb_patch[] = {
 	{ 0x80, 0x0000 },
 };
 
-static const struct reg_default wm5102t_pwr_1[] = {
+static const struct reg_sequence wm5102t_pwr_1[] = {
 	{ 0x46C, 0xC01 },
 	{ 0x46E, 0xC01 },
 	{ 0x470, 0xC01 },
 };
 
-static const struct reg_default wm5102t_pwr_2[] = {
+static const struct reg_sequence wm5102t_pwr_2[] = {
 	{ 0x462, 0xC00 },
 	{ 0x464, 0xC00 },
 	{ 0x466, 0xC00 },
@@ -95,7 +95,7 @@ static const struct reg_default wm5102t_pwr_2[] = {
 	{ 0x476, 0x806 },
 };
 
-static const struct reg_default wm5102t_pwr_3[] = {
+static const struct reg_sequence wm5102t_pwr_3[] = {
 	{ 0x462, 0xC00 },
 	{ 0x464, 0xC00 },
 	{ 0x466, 0xC00 },
@@ -109,7 +109,7 @@ static const struct reg_default wm5102t_pwr_3[] = {
 	{ 0x47e, 0x80e },
 };
 
-static const struct reg_default wm5102t_pwr_4[] = {
+static const struct reg_sequence wm5102t_pwr_4[] = {
 	{ 0x462, 0xC00 },
 	{ 0x464, 0xC00 },
 	{ 0x466, 0xC00 },
@@ -128,7 +128,7 @@ static const struct reg_default wm5102t_pwr_4[] = {
 };
 
 static const struct {
-	const struct reg_default *patch;
+	const struct reg_sequence *patch;
 	int size;
 } wm5102t_pwr[] = {
 	{ NULL, 0 },
@@ -138,10 +138,11 @@ static const struct {
 	{ wm5102t_pwr_4, ARRAY_SIZE(wm5102t_pwr_4) },
 };
 
+#ifdef CONFIG_MFD_WM5102
 /* We use a function so we can use ARRAY_SIZE() */
 int wm5102_patch(struct arizona *arizona)
 {
-	const struct reg_default *wm5102_patch;
+	const struct reg_sequence *wm5102_patch;
 	int ret;
 	int patch_size;
 	int pwr_index = arizona->pdata.wm5102t_output_pwr;
@@ -173,6 +174,7 @@ int wm5102_patch(struct arizona *arizona)
 out:
 	return ret;
 }
+#endif
 
 static const struct regmap_irq wm5102_aod_irqs[ARIZONA_NUM_IRQ] = {
 	[ARIZONA_IRQ_MICD_CLAMP_FALL] = {
@@ -342,8 +344,6 @@ static const struct reg_default wm5102_reg_default[] = {
 	{ 0x00000069, 0x01FF },   /* R105   - Always On Triggers Sequence Select 4 */
 	{ 0x0000006A, 0x01FF },   /* R106   - Always On Triggers Sequence Select 5 */
 	{ 0x0000006B, 0x01FF },   /* R107   - Always On Triggers Sequence Select 6 */
-	{ 0x0000006E, 0x01FF },   /* R110   - Trigger Sequence Select 32 */
-	{ 0x0000006F, 0x01FF },   /* R111   - Trigger Sequence Select 33 */
 	{ 0x00000070, 0x0000 },   /* R112   - Comfort Noise Generator */ 
 	{ 0x00000090, 0x0000 },   /* R144   - Haptics Control 1 */ 
 	{ 0x00000091, 0x7FFF },   /* R145   - Haptics Control 2 */ 
@@ -376,7 +376,6 @@ static const struct reg_default wm5102_reg_default[] = {
 	{ 0x00000175, 0x0004 },   /* R373   - FLL1 Control 5 */ 
 	{ 0x00000176, 0x0000 },   /* R374   - FLL1 Control 6 */ 
 	{ 0x00000177, 0x0181 },   /* R375   - FLL1 Loop Filter Test 1 */ 
-	{ 0x00000178, 0x0000 },   /* R376   - FLL1 NCO Test 0 */
 	{ 0x00000179, 0x0000 },   /* R377   - FLL1 Control 7 */
 	{ 0x00000181, 0x0000 },   /* R385   - FLL1 Synchroniser 1 */ 
 	{ 0x00000182, 0x0000 },   /* R386   - FLL1 Synchroniser 2 */ 
@@ -394,7 +393,6 @@ static const struct reg_default wm5102_reg_default[] = {
 	{ 0x00000195, 0x0004 },   /* R405   - FLL2 Control 5 */ 
 	{ 0x00000196, 0x0000 },   /* R406   - FLL2 Control 6 */ 
 	{ 0x00000197, 0x0000 },   /* R407   - FLL2 Loop Filter Test 1 */ 
-	{ 0x00000198, 0x0000 },   /* R408   - FLL2 NCO Test 0 */
 	{ 0x00000199, 0x0000 },   /* R409   - FLL2 Control 7 */
 	{ 0x000001A1, 0x0000 },   /* R417   - FLL2 Synchroniser 1 */ 
 	{ 0x000001A2, 0x0000 },   /* R418   - FLL2 Synchroniser 2 */ 
@@ -414,12 +412,9 @@ static const struct reg_default wm5102_reg_default[] = {
 	{ 0x0000021A, 0x01A6 },   /* R538   - Mic Bias Ctrl 3 */ 
 	{ 0x00000293, 0x0000 },   /* R659   - Accessory Detect Mode 1 */ 
 	{ 0x0000029B, 0x0020 },   /* R667   - Headphone Detect 1 */ 
-	{ 0x0000029C, 0x0000 },   /* R668   - Headphone Detect 2 */
-	{ 0x0000029F, 0x0000 },   /* R671   - Headphone Detect Test */
 	{ 0x000002A2, 0x0000 },   /* R674   - Micd clamp control */
 	{ 0x000002A3, 0x1102 },   /* R675   - Mic Detect 1 */ 
 	{ 0x000002A4, 0x009F },   /* R676   - Mic Detect 2 */ 
-	{ 0x000002A5, 0x0000 },   /* R677   - Mic Detect 3 */ 
 	{ 0x000002A6, 0x3737 },   /* R678   - Mic Detect Level 1 */
 	{ 0x000002A7, 0x372C },   /* R679   - Mic Detect Level 2 */
 	{ 0x000002A8, 0x1422 },   /* R680   - Mic Detect Level 3 */
@@ -963,11 +958,11 @@ static const struct reg_default wm5102_reg_default[] = {
 	{ 0x00000D1B, 0xFFFF },   /* R3355  - IRQ2 Status 4 Mask */ 
 	{ 0x00000D1C, 0xFFFF },   /* R3356  - IRQ2 Status 5 Mask */ 
 	{ 0x00000D1F, 0x0000 },   /* R3359  - IRQ2 Control */ 
+	{ 0x00000D41, 0x0000 },   /* R3393  - ADSP2 IRQ0 */
 	{ 0x00000D53, 0xFFFF },   /* R3411  - AOD IRQ Mask IRQ1 */ 
 	{ 0x00000D54, 0xFFFF },   /* R3412  - AOD IRQ Mask IRQ2 */ 
 	{ 0x00000D56, 0x0000 },   /* R3414  - Jack detect debounce */ 
 	{ 0x00000E00, 0x0000 },   /* R3584  - FX_Ctrl1 */ 
-	{ 0x00000E01, 0x0000 },   /* R3585  - FX_Ctrl2 */ 
 	{ 0x00000E10, 0x6318 },   /* R3600  - EQ1_1 */ 
 	{ 0x00000E11, 0x6300 },   /* R3601  - EQ1_2 */ 
 	{ 0x00000E12, 0x0FC8 },   /* R3602  - EQ1_3 */ 
@@ -1074,7 +1069,6 @@ static const struct reg_default wm5102_reg_default[] = {
 	{ 0x00000EF4, 0x0000 },   /* R3828  - ISRC 2 CTRL 2 */ 
 	{ 0x00000EF5, 0x0000 },   /* R3829  - ISRC 2 CTRL 3 */ 
 	{ 0x00001100, 0x0010 },   /* R4352  - DSP1 Control 1 */ 
-	{ 0x00001101, 0x0000 },   /* R4353  - DSP1 Clocking 1 */ 
 };
 
 static bool wm5102_readable_register(struct device *dev, unsigned int reg)
@@ -1084,12 +1078,10 @@ static bool wm5102_readable_register(struct device *dev, unsigned int reg)
 	case ARIZONA_DEVICE_REVISION:
 	case ARIZONA_CTRL_IF_SPI_CFG_1:
 	case ARIZONA_CTRL_IF_I2C1_CFG_1:
-	case ARIZONA_CTRL_IF_STATUS_1:
 	case ARIZONA_WRITE_SEQUENCER_CTRL_0:
 	case ARIZONA_WRITE_SEQUENCER_CTRL_1:
 	case ARIZONA_WRITE_SEQUENCER_CTRL_2:
 	case ARIZONA_WRITE_SEQUENCER_CTRL_3:
-	case ARIZONA_WRITE_SEQUENCER_PROM:
 	case ARIZONA_TONE_GENERATOR_1:
 	case ARIZONA_TONE_GENERATOR_2:
 	case ARIZONA_TONE_GENERATOR_3:
@@ -1110,8 +1102,6 @@ static bool wm5102_readable_register(struct device *dev, unsigned int reg)
 	case ARIZONA_ALWAYS_ON_TRIGGERS_SEQUENCE_SELECT_4:
 	case ARIZONA_ALWAYS_ON_TRIGGERS_SEQUENCE_SELECT_5:
 	case ARIZONA_ALWAYS_ON_TRIGGERS_SEQUENCE_SELECT_6:
-	case ARIZONA_ALWAYS_ON_TRIGGERS_SEQUENCE_SELECT_7:
-	case ARIZONA_ALWAYS_ON_TRIGGERS_SEQUENCE_SELECT_8:
 	case ARIZONA_COMFORT_NOISE_GENERATOR:
 	case ARIZONA_HAPTICS_CONTROL_1:
 	case ARIZONA_HAPTICS_CONTROL_2:
@@ -1248,14 +1238,10 @@ static bool wm5102_readable_register(struct device *dev, unsigned int reg)
 	case ARIZONA_DAC_DIGITAL_VOLUME_3L:
 	case ARIZONA_DAC_VOLUME_LIMIT_3L:
 	case ARIZONA_NOISE_GATE_SELECT_3L:
-	case ARIZONA_OUTPUT_PATH_CONFIG_3R:
-	case ARIZONA_DAC_DIGITAL_VOLUME_3R:
-	case ARIZONA_DAC_VOLUME_LIMIT_3R:
 	case ARIZONA_OUTPUT_PATH_CONFIG_4L:
 	case ARIZONA_DAC_DIGITAL_VOLUME_4L:
 	case ARIZONA_OUT_VOLUME_4L:
 	case ARIZONA_NOISE_GATE_SELECT_4L:
-	case ARIZONA_OUTPUT_PATH_CONFIG_4R:
 	case ARIZONA_DAC_DIGITAL_VOLUME_4R:
 	case ARIZONA_OUT_VOLUME_4R:
 	case ARIZONA_NOISE_GATE_SELECT_4R:
@@ -1263,7 +1249,6 @@ static bool wm5102_readable_register(struct device *dev, unsigned int reg)
 	case ARIZONA_DAC_DIGITAL_VOLUME_5L:
 	case ARIZONA_DAC_VOLUME_LIMIT_5L:
 	case ARIZONA_NOISE_GATE_SELECT_5L:
-	case ARIZONA_OUTPUT_PATH_CONFIG_5R:
 	case ARIZONA_DAC_DIGITAL_VOLUME_5R:
 	case ARIZONA_DAC_VOLUME_LIMIT_5R:
 	case ARIZONA_NOISE_GATE_SELECT_5R:
@@ -1274,8 +1259,6 @@ static bool wm5102_readable_register(struct device *dev, unsigned int reg)
 	case ARIZONA_NOISE_GATE_CONTROL:
 	case ARIZONA_PDM_SPK1_CTRL_1:
 	case ARIZONA_PDM_SPK1_CTRL_2:
-	case ARIZONA_SPK_CTRL_2:
-	case ARIZONA_SPK_CTRL_3:
 	case ARIZONA_DAC_COMP_1:
 	case ARIZONA_DAC_COMP_2:
 	case ARIZONA_DAC_COMP_3:
@@ -1307,7 +1290,6 @@ static bool wm5102_readable_register(struct device *dev, unsigned int reg)
 	case ARIZONA_AIF1_FRAME_CTRL_18:
 	case ARIZONA_AIF1_TX_ENABLES:
 	case ARIZONA_AIF1_RX_ENABLES:
-	case ARIZONA_AIF1_FORCE_WRITE:
 	case ARIZONA_AIF2_BCLK_CTRL:
 	case ARIZONA_AIF2_TX_PIN_CTRL:
 	case ARIZONA_AIF2_RX_PIN_CTRL:
@@ -1323,7 +1305,6 @@ static bool wm5102_readable_register(struct device *dev, unsigned int reg)
 	case ARIZONA_AIF2_FRAME_CTRL_12:
 	case ARIZONA_AIF2_TX_ENABLES:
 	case ARIZONA_AIF2_RX_ENABLES:
-	case ARIZONA_AIF2_FORCE_WRITE:
 	case ARIZONA_AIF3_BCLK_CTRL:
 	case ARIZONA_AIF3_TX_PIN_CTRL:
 	case ARIZONA_AIF3_RX_PIN_CTRL:
@@ -1339,7 +1320,6 @@ static bool wm5102_readable_register(struct device *dev, unsigned int reg)
 	case ARIZONA_AIF3_FRAME_CTRL_12:
 	case ARIZONA_AIF3_TX_ENABLES:
 	case ARIZONA_AIF3_RX_ENABLES:
-	case ARIZONA_AIF3_FORCE_WRITE:
 	case ARIZONA_SLIMBUS_FRAMER_REF_GEAR:
 	case ARIZONA_SLIMBUS_RATES_1:
 	case ARIZONA_SLIMBUS_RATES_2:
@@ -1665,22 +1645,6 @@ static bool wm5102_readable_register(struct device *dev, unsigned int reg)
 	case ARIZONA_DRC1RMIX_INPUT_3_VOLUME:
 	case ARIZONA_DRC1RMIX_INPUT_4_SOURCE:
 	case ARIZONA_DRC1RMIX_INPUT_4_VOLUME:
-	case ARIZONA_DRC2LMIX_INPUT_1_SOURCE:
-	case ARIZONA_DRC2LMIX_INPUT_1_VOLUME:
-	case ARIZONA_DRC2LMIX_INPUT_2_SOURCE:
-	case ARIZONA_DRC2LMIX_INPUT_2_VOLUME:
-	case ARIZONA_DRC2LMIX_INPUT_3_SOURCE:
-	case ARIZONA_DRC2LMIX_INPUT_3_VOLUME:
-	case ARIZONA_DRC2LMIX_INPUT_4_SOURCE:
-	case ARIZONA_DRC2LMIX_INPUT_4_VOLUME:
-	case ARIZONA_DRC2RMIX_INPUT_1_SOURCE:
-	case ARIZONA_DRC2RMIX_INPUT_1_VOLUME:
-	case ARIZONA_DRC2RMIX_INPUT_2_SOURCE:
-	case ARIZONA_DRC2RMIX_INPUT_2_VOLUME:
-	case ARIZONA_DRC2RMIX_INPUT_3_SOURCE:
-	case ARIZONA_DRC2RMIX_INPUT_3_VOLUME:
-	case ARIZONA_DRC2RMIX_INPUT_4_SOURCE:
-	case ARIZONA_DRC2RMIX_INPUT_4_VOLUME:
 	case ARIZONA_HPLP1MIX_INPUT_1_SOURCE:
 	case ARIZONA_HPLP1MIX_INPUT_1_VOLUME:
 	case ARIZONA_HPLP1MIX_INPUT_2_SOURCE:
@@ -1889,11 +1853,6 @@ static bool wm5102_readable_register(struct device *dev, unsigned int reg)
 	case ARIZONA_DRC1_CTRL3:
 	case ARIZONA_DRC1_CTRL4:
 	case ARIZONA_DRC1_CTRL5:
-	case ARIZONA_DRC2_CTRL1:
-	case ARIZONA_DRC2_CTRL2:
-	case ARIZONA_DRC2_CTRL3:
-	case ARIZONA_DRC2_CTRL4:
-	case ARIZONA_DRC2_CTRL5:
 	case ARIZONA_HPLPF1_1:
 	case ARIZONA_HPLPF1_2:
 	case ARIZONA_HPLPF2_1:
@@ -1911,9 +1870,6 @@ static bool wm5102_readable_register(struct device *dev, unsigned int reg)
 	case ARIZONA_ISRC_2_CTRL_1:
 	case ARIZONA_ISRC_2_CTRL_2:
 	case ARIZONA_ISRC_2_CTRL_3:
-	case ARIZONA_ISRC_3_CTRL_1:
-	case ARIZONA_ISRC_3_CTRL_2:
-	case ARIZONA_ISRC_3_CTRL_3:
 	case ARIZONA_DSP1_CONTROL_1:
 	case ARIZONA_DSP1_CLOCKING_1:
 	case ARIZONA_DSP1_STATUS_1:
@@ -1962,7 +1918,6 @@ static bool wm5102_volatile_register(struct device *dev, unsigned int reg)
 	case ARIZONA_WRITE_SEQUENCER_CTRL_2:
 	case ARIZONA_WRITE_SEQUENCER_CTRL_3:
 	case ARIZONA_OUTPUT_STATUS_1:
-	case ARIZONA_RAW_OUTPUT_STATUS_1:
 	case ARIZONA_SLIMBUS_RX_PORT_STATUS:
 	case ARIZONA_SLIMBUS_TX_PORT_STATUS:
 	case ARIZONA_SAMPLE_RATE_1_STATUS:

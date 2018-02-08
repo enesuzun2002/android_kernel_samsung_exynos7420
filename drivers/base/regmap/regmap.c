@@ -17,6 +17,7 @@
 #include <linux/err.h>
 #include <linux/rbtree.h>
 #include <linux/sched.h>
+#include <linux/delay.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/regmap.h>
@@ -1321,7 +1322,7 @@ out:
 EXPORT_SYMBOL_GPL(regmap_bulk_write);
 
 static int _regmap_multi_reg_write(struct regmap *map,
-				   const struct reg_default *regs,
+				   const struct reg_sequence *regs,
 				   int num_regs)
 {
 	int i, ret;
@@ -1335,6 +1336,9 @@ static int _regmap_multi_reg_write(struct regmap *map,
 				regs[i].reg, regs[i].def, ret);
 			return ret;
 		}
+
+		if (regs[i].delay_us)
+			udelay(regs[i].delay_us);
 	}
 
 	return 0;
@@ -1356,7 +1360,7 @@ static int _regmap_multi_reg_write(struct regmap *map,
  * A value of zero will be returned on success, a negative errno will
  * be returned in error cases.
  */
-int regmap_multi_reg_write(struct regmap *map, const struct reg_default *regs,
+int regmap_multi_reg_write(struct regmap *map, const struct reg_sequence *regs,
 			   int num_regs)
 {
 	int ret;
@@ -1389,7 +1393,7 @@ EXPORT_SYMBOL_GPL(regmap_multi_reg_write);
  * be returned in error cases.
  */
 int regmap_multi_reg_write_bypassed(struct regmap *map,
-				    const struct reg_default *regs,
+				    const struct reg_sequence *regs,
 				    int num_regs)
 {
 	int ret;
