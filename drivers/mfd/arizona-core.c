@@ -551,7 +551,7 @@ err:
  * Register patch to some of the CODECs internal write sequences
  * to ensure a clean exit from the low power sleep state.
  */
-static const struct reg_default wm5110_sleep_patch[] = {
+static const struct reg_sequence wm5110_sleep_patch[] = {
 	{ 0x337A, 0xC100 },
 	{ 0x337B, 0x0041 },
 	{ 0x3300, 0xA210 },
@@ -1612,6 +1612,7 @@ int arizona_dev_init(struct arizona *arizona)
 	mutex_init(&arizona->subsys_max_lock);
 	mutex_init(&arizona->reg_setting_lock);
 	mutex_init(&arizona->rate_lock);
+	mutex_init(&arizona->dspclk_ena_lock);
 
 	if (dev_get_platdata(arizona->dev))
 		memcpy(&arizona->pdata, dev_get_platdata(arizona->dev),
@@ -2067,7 +2068,6 @@ default:
 	case CS47L24:
 	case WM8998:
 	case WM1814:
-	case CS47L35:
 		max_inputs = 2;
 		break;
 	default:
