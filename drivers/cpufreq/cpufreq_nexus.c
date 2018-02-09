@@ -89,13 +89,13 @@ struct cpufreq_nexus_tunables {
 
 	// defines the required ratio IN HUNDREDS between down-load and current load
 	// to trigger an enhanced down-step elevation, done steps defined by
-	// [down_load_to_step_elevation]
+	// [lpr_down_elevation]
 	//
 	//   notice:
 	//
-	// the load-to-step (lts) enhancement would start to trigger at a load of
+	// the load-peak-recognition (lpr) enhancement would start to trigger at a load of
 	//
-	// 		TRIGGER_LOAD = {  ([down_load] * 100) / [down_load_to_step_ratio]  }
+	// 		TRIGGER_LOAD = {  ([down_load] * 100) / [lpr_down_ratio]  }
 	//
 	//   remark #1:	 [TRIGGER_LOAD] needs to be checked according to current state
 	//               of up/downscaling before computing and applying the elevation
@@ -103,25 +103,25 @@ struct cpufreq_nexus_tunables {
 	//   remark #2:	 for upscaling, the correct value is the difference of [TRIGGER_LOAD]
 	//               to [up_load] and adding [up_load] again:
 	//
-	//               		UP_TRIGGER_LOAD = {  [up_load] + ([up_load] - (([up_load] * 100) / [up_load_to_step_ratio]))  }
+	//               		UP_TRIGGER_LOAD = {  [up_load] + ([up_load] - (([up_load] * 100) / [lpr_up_ratio]))  }
 	//
-	#define DEFAULT_DOWN_LOAD_TO_STEP_RATIO 125
-	unsigned int down_load_to_step_ratio;
+	#define DEFAULT_LPR_DOWN_RATIO 125
+	unsigned int lpr_down_ratio;
 
-	// defined the down-steps taken if the load-to-step ratio is being triggered.
-	// [down_load_to_step_ratio] is being accounted to the final lts-added
+	// defined the down-steps taken if the load-peak-recognition ratio is being triggered.
+	// [lpr_down_ratio] is being accounted to the final lpr-added
 	//
 	//   notice:
 	//
 	// the final step-elevation is being computed by using the current ratio
-	// between [down_load] and the lts trigger-load by taking the ratio of
+	// between [down_load] and the lpr trigger-load by taking the ratio of
 	// [down_load] and [TRIGGER_LOAD]. Afterwards, multiply if with the requeste
 	// elevation-steps
 	// 
-	// 		ELEVATION_STEPS = {  (([down_load] * 100) / ([TRIGGER_LOAD] * 100)) * [down_load_to_step_elevation]  }
+	// 		ELEVATION_STEPS = {  (([down_load] * 100) / ([TRIGGER_LOAD] * 100)) * [lpr_down_elevation]  }
 	//
-	#define DEFAULT_DOWN_LOAD_TO_STEP_ELEVATION 1
-	unsigned int down_load_to_step_elevation;
+	#define DEFAULT_LPR_DOWN_ELEVATION 1
+	unsigned int lpr_down_elevation;
 
 	// load at which the cpugov decides to scale up
 	#define DEFAULT_UP_LOAD 50
@@ -135,13 +135,13 @@ struct cpufreq_nexus_tunables {
 	#define DEFAULT_UP_STEP 1
 	unsigned int up_step;
 
-	// READ MORE AT [down_load_to_step_ratio]
-	#define DEFAULT_UP_LOAD_TO_STEP_RATIO 125
-	unsigned int up_load_to_step_ratio;
+	// READ MORE AT [lpr_down_ratio]
+	#define DEFAULT_LPR_UP_RATIO 125
+	unsigned int lpr_up_ratio;
 
-	// READ MORE AT [down_load_to_step_elevation]
-	#define DEFAULT_UP_LOAD_TO_STEP_ELEVATION 2
-	unsigned int up_load_to_step_elevation;
+	// READ MORE AT [lpr_down_elevation]
+	#define DEFAULT_LPR_UP_ELEVATION 2
+	unsigned int lpr_up_elevation;
 
 	// interval of the scaling-timer
 	#define DEFAULT_TIMER_RATE 15000
@@ -238,7 +238,7 @@ static int cpufreq_nexus_timer(struct cpufreq_nexus_cpuinfo *cpuinfo, struct cpu
 	unsigned int index = 0,
 	             freq = 0,
 	             freq_next = 0,
-	             lts_trigger_load = 0;
+	             lpr_trigger_load = 0;
 	cputime64_t curr_idle, curr_wall, idle, wall;
 
 	int load_debug = 0;
@@ -321,15 +321,15 @@ static int cpufreq_nexus_timer(struct cpufreq_nexus_cpuinfo *cpuinfo, struct cpu
 					nexus_debug("%s: cpu%d: up steps         = %d\n", __func__, cpu, steps);
 					nexus_debug("%s: cpu%d: up load          = %d\n", __func__, cpu, tunables->up_load);
 
-					// load-to-step
-					if (tunables->up_load_to_step_ratio > 0) {
-						lts_trigger_load = tunables->up_load + (tunables->up_load - ((tunables->up_load * 100) / tunables->up_load_to_step_ratio));
-						nexus_debug("%s: cpu%d: lts up trg load  = %d\n", __func__, cpu, lts_trigger_load);
-						if (load >= lts_trigger_load) {
-							int lts_ratio = DIV_ROUND_UP(lts_trigger_load * 100, load * 100);
+					// load peak recognition
+					if (tunables->lpr_up_ratio > 0) {
+						lpr_trigger_load = tunables->up_load + (tunables->up_load - ((tunables->up_load * 100) / tunables->lpr_up_ratio));
+						nexus_debug("%s: cpu%d: lpr up trg load  = %d\n", __func__, cpu, lpr_trigger_load);
+						if (load >= lpr_trigger_load) {
+							int lpr_ratio = DIV_ROUND_UP(lpr_trigger_load * 100, load * 100);
 
-							steps += lts_ratio * tunables->up_load_to_step_elevation;
-							nexus_debug("%s: cpu%d: lts up trg       = %d / %d\n", __func__, cpu, lts_ratio, steps);
+							steps += lpr_ratio * tunables->lpr_up_elevation;
+							nexus_debug("%s: cpu%d: lpr up trg       = %d / %d\n", __func__, cpu, lpr_ratio, steps);
 						}
 					}
 
@@ -353,15 +353,15 @@ static int cpufreq_nexus_timer(struct cpufreq_nexus_cpuinfo *cpuinfo, struct cpu
 					nexus_debug("%s: cpu%d: down steps       = %d\n", __func__, cpu, steps);
 					nexus_debug("%s: cpu%d: down load        = %d\n", __func__, cpu, tunables->down_load);
 
-					// load-to-step
-					if (tunables->down_load_to_step_ratio > 0) {
-						lts_trigger_load = ((tunables->down_load * 100) / tunables->down_load_to_step_ratio);
-						nexus_debug("%s: cpu%d: lts dwn trg load = %d\n", __func__, cpu, lts_trigger_load);
-						if (load <= lts_trigger_load) {
-							int lts_ratio = DIV_ROUND_UP(lts_trigger_load * 100, load * 100);
+					// load peak recognition
+					if (tunables->lpr_down_ratio > 0) {
+						lpr_trigger_load = ((tunables->down_load * 100) / tunables->lpr_down_ratio);
+						nexus_debug("%s: cpu%d: lpr dwn trg load = %d\n", __func__, cpu, lpr_trigger_load);
+						if (load <= lpr_trigger_load) {
+							int lpr_ratio = DIV_ROUND_UP(lpr_trigger_load * 100, load * 100);
 
-							steps += lts_ratio * tunables->down_load_to_step_elevation;
-							nexus_debug("%s: cpu%d: lts dwn trg        = %d / %d\n", __func__, cpu, lts_ratio, steps);
+							steps += lpr_ratio * tunables->lpr_down_elevation;
+							nexus_debug("%s: cpu%d: lpr dwn trg        = %d / %d\n", __func__, cpu, lpr_ratio, steps);
 						}
 					}
 
@@ -678,13 +678,13 @@ static ssize_t store_boostpulse(struct cpufreq_nexus_tunables *tunables, const c
 gov_show_store(down_load);
 gov_show_store(down_delay);
 gov_show_store(down_step);
-gov_show_store(down_load_to_step_ratio);
-gov_show_store(down_load_to_step_elevation);
+gov_show_store(lpr_down_ratio);
+gov_show_store(lpr_down_elevation);
 gov_show_store(up_load);
 gov_show_store(up_delay);
 gov_show_store(up_step);
-gov_show_store(up_load_to_step_ratio);
-gov_show_store(up_load_to_step_elevation);
+gov_show_store(lpr_up_ratio);
+gov_show_store(lpr_up_elevation);
 gov_show_store(timer_rate);
 gov_show_store(io_is_busy);
 gov_show_store(boost);
@@ -699,13 +699,13 @@ gov_show_store(hispeed_power_efficient);
 gov_sys_pol_show_store(down_load);
 gov_sys_pol_show_store(down_delay);
 gov_sys_pol_show_store(down_step);
-gov_sys_pol_show_store(down_load_to_step_ratio);
-gov_sys_pol_show_store(down_load_to_step_elevation);
+gov_sys_pol_show_store(lpr_down_ratio);
+gov_sys_pol_show_store(lpr_down_elevation);
 gov_sys_pol_show_store(up_load);
 gov_sys_pol_show_store(up_delay);
 gov_sys_pol_show_store(up_step);
-gov_sys_pol_show_store(up_load_to_step_ratio);
-gov_sys_pol_show_store(up_load_to_step_elevation);
+gov_sys_pol_show_store(lpr_up_ratio);
+gov_sys_pol_show_store(lpr_up_elevation);
 gov_sys_pol_show_store(timer_rate);
 gov_sys_pol_show_store(io_is_busy);
 gov_sys_pol_show_store(freq_min);
@@ -726,13 +726,13 @@ static struct attribute *attributes_gov_sys[] = {
 	&down_load_gov_sys.attr,
 	&down_delay_gov_sys.attr,
 	&down_step_gov_sys.attr,
-	&down_load_to_step_ratio_gov_sys.attr,
-	&down_load_to_step_elevation_gov_sys.attr,
+	&lpr_down_ratio_gov_sys.attr,
+	&lpr_down_elevation_gov_sys.attr,
 	&up_load_gov_sys.attr,
 	&up_delay_gov_sys.attr,
 	&up_step_gov_sys.attr,
-	&up_load_to_step_ratio_gov_sys.attr,
-	&up_load_to_step_elevation_gov_sys.attr,
+	&lpr_up_ratio_gov_sys.attr,
+	&lpr_up_elevation_gov_sys.attr,
 	&timer_rate_gov_sys.attr,
 	&io_is_busy_gov_sys.attr,
 	&freq_min_gov_sys.attr,
@@ -760,13 +760,13 @@ static struct attribute *attributes_gov_pol[] = {
 	&down_load_gov_pol.attr,
 	&down_delay_gov_pol.attr,
 	&down_step_gov_pol.attr,
-	&down_load_to_step_ratio_gov_pol.attr,
-	&down_load_to_step_elevation_gov_pol.attr,
+	&lpr_down_ratio_gov_pol.attr,
+	&lpr_down_elevation_gov_pol.attr,
 	&up_load_gov_pol.attr,
 	&up_delay_gov_pol.attr,
 	&up_step_gov_pol.attr,
-	&up_load_to_step_ratio_gov_pol.attr,
-	&up_load_to_step_elevation_gov_pol.attr,
+	&lpr_up_ratio_gov_pol.attr,
+	&lpr_up_elevation_gov_pol.attr,
 	&timer_rate_gov_pol.attr,
 	&io_is_busy_gov_pol.attr,
 	&freq_min_gov_pol.attr,
@@ -828,13 +828,13 @@ static int cpufreq_governor_nexus(struct cpufreq_policy *policy, unsigned int ev
 			tunables->down_load = DEFAULT_DOWN_LOAD;
 			tunables->down_delay = DEFAULT_DOWN_DELAY;
 			tunables->down_step = DEFAULT_DOWN_STEP;
-			tunables->down_load_to_step_ratio = DEFAULT_DOWN_LOAD_TO_STEP_RATIO;
-			tunables->down_load_to_step_elevation = DEFAULT_DOWN_LOAD_TO_STEP_ELEVATION;
+			tunables->lpr_down_ratio = DEFAULT_LPR_DOWN_RATIO;
+			tunables->lpr_down_elevation = DEFAULT_LPR_DOWN_ELEVATION;
 			tunables->up_load = DEFAULT_UP_LOAD;
 			tunables->up_delay = DEFAULT_UP_DELAY;
 			tunables->up_step = DEFAULT_UP_STEP;
-			tunables->up_load_to_step_ratio = DEFAULT_UP_LOAD_TO_STEP_RATIO;
-			tunables->up_load_to_step_elevation = DEFAULT_UP_LOAD_TO_STEP_ELEVATION;
+			tunables->lpr_up_ratio = DEFAULT_LPR_UP_RATIO;
+			tunables->lpr_up_elevation = DEFAULT_LPR_UP_ELEVATION;
 			tunables->timer_rate = DEFAULT_TIMER_RATE;
 			tunables->io_is_busy = DEFAULT_IO_IS_BUSY;
 			tunables->freq_min = policy->min;
