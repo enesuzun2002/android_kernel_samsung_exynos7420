@@ -31,8 +31,6 @@
 
 // enable debugging-mode
 #define CPUGOV_NEXUS_DEBUG				0
-// set to 0 for workqueues, 1 for kthreads
-#define CPUGOV_NEXUS_KTHREAD				1
 
 static struct cpufreq_nexus_tunables *global_tunables = NULL;
 static DEFINE_MUTEX(cpufreq_governor_nexus_mutex);
@@ -65,11 +63,7 @@ struct cpufreq_nexus_cpuinfo {
 	unsigned int up_delay_counter;
 	unsigned int hispeed_delay_counter;
 
-#if CPUGOV_NEXUS_KTHREAD
 	struct task_struct *work;
-#else
-	struct delayed_work work;
-#endif
 
 	struct mutex timer_mutex;
 };
@@ -447,7 +441,6 @@ exit:
 	return ret;
 }
 
-#if CPUGOV_NEXUS_KTHREAD
 static int cpufreq_nexus_task(void *data)
 {
 	int cpu = -1, ret = 0;
@@ -485,42 +478,6 @@ static int cpufreq_nexus_task(void *data)
 
 	return 0;
 }
-#else
-static void cpufreq_nexus_task(struct work_struct *work)
-{
-	int delay = 0, cpu = 0, ret = 0;
-	struct cpufreq_nexus_cpuinfo *cpuinfo;
-	struct cpufreq_policy *policy;
-	struct cpufreq_nexus_tunables *tunables;
-
-	cpuinfo = container_of(work, struct cpufreq_nexus_cpuinfo, work.work);
-	if (!cpuinfo) {
-		nexus_error("%s: cpuinfo is null", __func__);
-		return;
-	}
-
-	policy = cpuinfo->policy;
-	if (!policy) {
-		nexus_error("%s: cpuinfo->policy is null", __func__);
-		return;
-	}
-
-	tunables = policy->governor_data;
-	cpu = cpuinfo->cpu;
-
-	/* main task */
-	ret = cpufreq_nexus_timer(cpuinfo, policy, tunables, 0 /* is_stopping */);
-
-	if (ret) {
-		delay = usecs_to_jiffies(tunables->timer_rate < 1000 ? 1000 : tunables->timer_rate);
-		if (num_online_cpus() > 1) {
-			delay -= jiffies % delay;
-		}
-	}
-
-	queue_delayed_work_on(cpu, system_wq, &cpuinfo->work, delay);
-}
-#endif
 
 #define gov_show_store(_name) \
 	gov_show(_name);          \
@@ -802,10 +759,8 @@ static int cpufreq_governor_nexus(struct cpufreq_policy *policy, unsigned int ev
 	int cpu, delay, work_cpu;
 	struct cpufreq_nexus_cpuinfo *cpuinfo;
 	struct cpufreq_nexus_tunables *tunables;
-#if CPUGOV_NEXUS_KTHREAD
 	struct sched_param param = { .sched_priority = MAX_RT_PRIO - 1 };
 	char cpufreq_nexus_task_name[TASK_NAME_LEN];
-#endif
 
 	cpu = policy->cpu;
 
@@ -904,7 +859,6 @@ static int cpufreq_governor_nexus(struct cpufreq_policy *policy, unsigned int ev
 					delay -= jiffies % delay;
 				}
 
-#if CPUGOV_NEXUS_KTHREAD
 				snprintf(cpufreq_nexus_task_name, TASK_NAME_LEN, "cpufreq-nexus%d\n", work_cpu);
 
 				cpuinfo->work = kthread_create(cpufreq_nexus_task, NULL, cpufreq_nexus_task_name);
@@ -914,10 +868,6 @@ static int cpufreq_governor_nexus(struct cpufreq_policy *policy, unsigned int ev
 				get_task_struct(cpuinfo->work);
 
 				wake_up_process(cpuinfo->work);
-#else
-				INIT_DEFERRABLE_WORK(&cpuinfo->work, cpufreq_nexus_timer);
-				queue_delayed_work_on(work_cpu, system_wq, &cpuinfo->work, delay);
-#endif
 
 			};
 
@@ -933,13 +883,9 @@ static int cpufreq_governor_nexus(struct cpufreq_policy *policy, unsigned int ev
 				cpuinfo = &per_cpu(gov_cpuinfo, work_cpu);
 				tunables = policy->governor_data;
 
-#if CPUGOV_NEXUS_KTHREAD
 				kthread_stop(cpuinfo->work);
 				put_task_struct(cpuinfo->work);
 				cpuinfo->work = NULL;
-#else
-				cancel_delayed_work_sync(&cpuinfo->work);
-#endif
 			}
 
 			break;
