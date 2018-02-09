@@ -33,18 +33,18 @@
 #define CPUGOV_NEXUS_DEBUG				0
 // set to 0 for workqueues, 1 for kthreads
 #define CPUGOV_NEXUS_KTHREAD				1
-// use also may choose panic
-#define CPUGOV_NEXUS_ERROR				WARN
 
 static struct cpufreq_nexus_tunables *global_tunables = NULL;
 static DEFINE_MUTEX(cpufreq_governor_nexus_mutex);
 
 #if CPUGOV_NEXUS_DEBUG
-#define nexus_debug(format, ...) \
-	pr_info(format, ##__VA_ARGS__)
+  #define nexus_error WARN
+  #define nexus_debug(format, ...) \
+	  pr_info(format, ##__VA_ARGS__)
 #else
-#define nexus_debug(format, ...) \
-	do { } while(0)
+  #define nexus_error WARN_ONCE
+  #define nexus_debug(format, ...) \
+	  do { } while(0)
 #endif
 
 #define TASK_NAME_LEN 15
@@ -459,13 +459,13 @@ static int cpufreq_nexus_task(void *data)
 
 	cpuinfo = &per_cpu(gov_cpuinfo, cpu);
 	if (!cpuinfo) {
-		CPUGOV_NEXUS_ERROR("%s: cpuinfo is null", __func__);
+		nexus_error("%s: cpuinfo is null", __func__);
 		return 0;
 	}
 
 	policy = cpuinfo->policy;
 	if (!policy) {
-		CPUGOV_NEXUS_ERROR("%s: policy is null", __func__);
+		nexus_error("%s: cpuinfo->policy is null", __func__);
 		return 0;
 	}
 
@@ -495,13 +495,13 @@ static void cpufreq_nexus_task(struct work_struct *work)
 
 	cpuinfo = container_of(work, struct cpufreq_nexus_cpuinfo, work.work);
 	if (!cpuinfo) {
-		CPUGOV_NEXUS_ERROR("%s: cpuinfo is null", __func__);
+		nexus_error("%s: cpuinfo is null", __func__);
 		return;
 	}
 
 	policy = cpuinfo->policy;
 	if (!policy) {
-		CPUGOV_NEXUS_ERROR("%s: policy is null", __func__);
+		nexus_error("%s: cpuinfo->policy is null", __func__);
 		return;
 	}
 
@@ -820,7 +820,7 @@ static int cpufreq_governor_nexus(struct cpufreq_policy *policy, unsigned int ev
 
 			tunables = kzalloc(sizeof(struct cpufreq_nexus_tunables), GFP_KERNEL);
 			if (!tunables) {
-				pr_err("%s: POLICY_INIT: kzalloc failed\n", __func__);
+				nexus_error("%s: POLICY_INIT: kzalloc for tunables failed\n", __func__);
 				mutex_unlock(&cpufreq_governor_nexus_mutex);
 				return -ENOMEM;
 			}
@@ -853,7 +853,7 @@ static int cpufreq_governor_nexus(struct cpufreq_policy *policy, unsigned int ev
 
 			rc = sysfs_create_group(get_governor_parent_kobj(policy), get_attribute_group());
 			if (rc) {
-				pr_err("%s: POLICY_INIT: sysfs_create_group failed\n", __func__);
+				nexus_error("%s: POLICY_INIT: sysfs_create_group failed\n", __func__);
 				kfree(tunables);
 				mutex_unlock(&cpufreq_governor_nexus_mutex);
 				return rc;
