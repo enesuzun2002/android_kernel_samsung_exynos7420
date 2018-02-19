@@ -264,7 +264,9 @@ static void fw_free_buf(struct firmware_buf *buf)
 
 /* direct firmware loading support */
 static char fw_path_para[256];
+static char fw_path_vendor_para[256];
 static const char * const fw_path[] = {
+	fw_path_vendor_para,
 	fw_path_para,
 	"/lib/firmware/updates/" UTS_RELEASE,
 	"/lib/firmware/updates",
@@ -279,6 +281,15 @@ static const char * const fw_path[] = {
  */
 module_param_string(path, fw_path_para, sizeof(fw_path_para), 0644);
 MODULE_PARM_DESC(path, "customized firmware image search path with a higher priority than default path");
+
+/*
+ * Vendor-customized search path for firmwares with highest search-priority
+ * Like default path, this can be changed by passing
+ * 		'firmware_class.path_vendor=$CUSTOMIZED_PATH'
+ * on kernel cmdline.
+ */
+module_param_string(path_vendor, fw_path_vendor_para, sizeof(fw_path_vendor_para), 0644);
+MODULE_PARM_DESC(path_vendor, "customized firmware image search path with the highest priority");
 
 /* Don't inline this: 'struct kstat' is biggish */
 static noinline_for_stack long fw_file_size(struct file *file)
