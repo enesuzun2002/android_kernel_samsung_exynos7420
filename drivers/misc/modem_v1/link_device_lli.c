@@ -34,6 +34,15 @@
 #include "modem_utils.h"
 #include "link_device_memory.h"
 
+// #define MODEM_LLI_LINK_DEBUGGING
+
+#ifdef MODEM_LLI_LINK_DEBUGGING
+  #define MODEM_LLI_LINK_DEBUG  mif_info
+#else
+  #define MODEM_LLI_LINK_DEBUG(...)
+#endif
+  
+
 static int sleep_timeout = 100;
 module_param(sleep_timeout, int, S_IRUGO);
 MODULE_PARM_DESC(sleep_timeout, "LLI sleep timeout");
@@ -588,20 +597,20 @@ static int init_pm(struct mem_link_device *mld)
 
 static void lli_link_reset(struct link_device *ld)
 {
-	mif_err("%s: PM %s <%pf>\n", ld->name, FUNC, CALLER);
+	MODEM_LLI_LINK_DEBUG("%s: PM %s <%pf>\n", ld->name, FUNC, CALLER);
 	mipi_lli_intr_enable();
 	mipi_lli_reset();
 }
 
 static void lli_link_reload(struct link_device *ld)
 {
-	mif_err("%s: PM %s <%pf>\n", ld->name, FUNC, CALLER);
+	MODEM_LLI_LINK_DEBUG("%s: PM %s <%pf>\n", ld->name, FUNC, CALLER);
 	mipi_lli_reload();
 }
 
 static void lli_link_off(struct link_device *ld)
 {
-	mif_err("%s: PM %s <%pf>\n", ld->name, FUNC, CALLER);
+	MODEM_LLI_LINK_DEBUG("%s: PM %s <%pf>\n", ld->name, FUNC, CALLER);
 	mipi_lli_intr_disable();
 	stop_pm(ld_to_mem_link_device(ld));
 }
