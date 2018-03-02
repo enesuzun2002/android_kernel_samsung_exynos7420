@@ -110,6 +110,17 @@ static struct of_device_id vfsspi_match_table[] = {
 #define vfsspi_match_table NULL
 #endif
 
+// if sysfs (or better said the power-HAL) takes control over the
+// fingerprint-sensor, make sure no other part of the system will
+// re-enable it themselves
+#define VFS7XXX_CHECK_SYSFS_RESTRICTION(_restr) \
+{ \
+	if (g_data->sysfs_##_restr##_restrict) { \
+		pr_info("%s: sysfs restricted calls, exiting...\n", __func__); \
+		return; \
+	} \
+}
+
 extern unsigned int lpcharge;
 
 /*
@@ -196,6 +207,8 @@ struct vfsspi_device_data {
 	struct notifier_block fb_notifier;
 #endif
 	bool sysfs_wakelocks;
+	bool sysfs_regulator_restrict;
+	bool sysfs_pm_restrict;
 };
 
 #ifdef CONFIG_SENSORS_FINGERPRINT_DUALIZATION
@@ -871,6 +884,11 @@ static void vfsspi_regulator_onoff(struct vfsspi_device_data *vfsspi_device,
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	int ret;
 #endif
+	// if sysfs (or better said the power-HAL) takes control over the
+	// fingerprint-sensor, make sure no other part of the system will
+	// re-enable it themselves
+	VFS7XXX_CHECK_SYSFS_RESTRICTION(regulator);
+
 	if (vfsspi_device->ldo_pin) {
 		if (vfsspi_device->ldocontrol) {
 			if (onoff) {
@@ -921,6 +939,11 @@ static void vfsspi_hardReset(struct vfsspi_device_data *vfsspi_device)
 {
 	pr_info("%s\n", __func__);
 
+	// if sysfs (or better said the power-HAL) takes control over the
+	// fingerprint-sensor, make sure no other part of the system will
+	// re-enable it themselves
+	VFS7XXX_CHECK_SYSFS_RESTRICTION(pm);
+
 	if (vfsspi_device != NULL) {
 		gpio_set_value(vfsspi_device->sleep_pin, 0);
 		mdelay(1);
@@ -933,6 +956,11 @@ static void vfsspi_suspend(struct vfsspi_device_data *vfsspi_device)
 {
 	pr_info("%s\n", __func__);
 
+	// if sysfs (or better said the power-HAL) takes control over the
+	// fingerprint-sensor, make sure no other part of the system will
+	// re-enable it themselves
+	VFS7XXX_CHECK_SYSFS_RESTRICTION(pm);
+
 	if (vfsspi_device != NULL) {
 		spin_lock(&vfsspi_device->vfs_spi_lock);
 		gpio_set_value(vfsspi_device->sleep_pin, 0);
@@ -942,6 +970,11 @@ static void vfsspi_suspend(struct vfsspi_device_data *vfsspi_device)
 
 static void vfsspi_ioctl_power_on(struct vfsspi_device_data *vfsspi_device)
 {
+	// if sysfs (or better said the power-HAL) takes control over the
+	// fingerprint-sensor, make sure no other part of the system will
+	// re-enable it themselves
+	VFS7XXX_CHECK_SYSFS_RESTRICTION(regulator);
+
 	if (vfsspi_device->ldocontrol && !vfsspi_device->ldo_onoff)
 		vfsspi_regulator_onoff(vfsspi_device, true);
 	else {
@@ -954,6 +987,11 @@ static void vfsspi_ioctl_power_on(struct vfsspi_device_data *vfsspi_device)
 
 static void vfsspi_ioctl_power_off(struct vfsspi_device_data *vfsspi_device)
 {
+	// if sysfs (or better said the power-HAL) takes control over the
+	// fingerprint-sensor, make sure no other part of the system will
+	// re-enable it themselves
+	VFS7XXX_CHECK_SYSFS_RESTRICTION(regulator);
+
 	if (vfsspi_device->ldocontrol && vfsspi_device->ldo_onoff) {
 		vfsspi_regulator_onoff(vfsspi_device, false);
 		/* prevent sleep pin floating */
@@ -1646,9 +1684,11 @@ static ssize_t vfsspi_ioctl_power_store(struct device *dev,
 	}
 
 	if (val == 1) {
+		g_data->sysfs_regulator_restrict = false;
 		vfsspi_regulator_onoff(g_data, true);
 	} else if (val == 0) {
 		vfsspi_regulator_onoff(g_data, false);
+		g_data->sysfs_regulator_restrict = true;
 	} else {
 		pr_err("%s, input value was not accepted.\n", __func__);
 		return -EINVAL;
@@ -1672,9 +1712,11 @@ static ssize_t vfsspi_pm_store(struct device *dev,
 	}
 
 	if (val == 1) {
-		vfsspi_suspend(g_data);
-	} else if (val == 0) {
+		g_data->sysfs_pm_restrict = false;
 		vfsspi_hardReset(g_data);
+	} else if (val == 0) {
+		vfsspi_suspend(g_data);
+		g_data->sysfs_pm_restrict = true;
 	} else {
 		pr_err("%s, input value was not accepted.\n", __func__);
 		return -EINVAL;
