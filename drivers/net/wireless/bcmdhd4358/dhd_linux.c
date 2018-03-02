@@ -1473,16 +1473,16 @@ void dhd_enable_packet_filter(int value, dhd_pub_t *dhd)
 module_param(wifi_pm, int, 0755);
 EXPORT_SYMBOL(wifi_pm);
 */
-int dtim_awake = 0;
+int dtim_awake = 1;
 module_param(dtim_awake, int, 0660);
 
-int dtim_suspended = 0;
+int dtim_suspended = 3;
 module_param(dtim_suspended, int, 0660);
 
-int wifi_pm_awake = PM_FAST;
+int wifi_pm_awake = PM_FORCE_OFF;
 module_param(wifi_pm_awake, int, 0660);
 
-int wifi_pm_suspended = PM_MAX;
+int wifi_pm_suspended = PM_FAST;
 module_param(wifi_pm_suspended, int, 0660);
 #endif
 
