@@ -36,6 +36,7 @@
 #include <linux/powersuspend.h>
 #endif
 #include <linux/hrtimer.h>
+#include <linux/wakelock.h>
 #include <asm-generic/cputime.h>
 
 /* uncomment since no touchscreen defines android touch, do that here */
@@ -60,6 +61,7 @@ MODULE_LICENSE("GPLv2");
 /* Tuneables */
 #define DT2W_DEBUG		0
 #define DT2W_DEFAULT		0
+#define DT2W_WAKELOCK_PERSIST_DEFAULT		1
 
 #define DT2W_PWRKEY_DUR		60
 #define DT2W_FEATHER		200
@@ -76,6 +78,8 @@ static struct input_dev * doubletap2wake_pwrdev;
 static DEFINE_MUTEX(pwrkeyworklock);
 static struct workqueue_struct *dt2w_input_wq;
 static struct work_struct dt2w_input_work;
+static struct wake_lock dt2w_wake_lock;
+static int dt2w_wake_lock_persist = DT2W_WAKELOCK_PERSIST_DEFAULT;
 
 /* Read cmdline for dt2w */
 static int __init read_dt2w_cmdline(char *dt2w)
@@ -191,6 +195,9 @@ static void dt2w_input_event(struct input_handle *handle, unsigned int type,
 		(code==ABS_MT_SLOT) ? "SLT" :
 		"undef"), code, value, scr_suspended);
 #endif
+	if (!dt2w_wake_lock_persist);
+		wake_lock_timeout(&dt2w_wake_lock, HZ);
+
 	if (!scr_suspended)
 		return;
 
@@ -303,10 +310,14 @@ static int lcd_state_change(struct notifier_block *nb,
 	switch (blank) {
 		case FB_BLANK_POWERDOWN:
 			scr_suspended = true;
+			if (dt2w_wake_lock_persist)
+				wake_lock(&dt2w_wake_lock);
 			break;
 
 		case FB_BLANK_UNBLANK:
 			scr_suspended = false;
+			if (dt2w_wake_lock_persist)
+				wake_unlock(&dt2w_wake_lock);
 			break;
 
 		default:
@@ -386,6 +397,34 @@ static ssize_t dt2w_version_dump(struct device *dev,
 static DEVICE_ATTR(doubletap2wake_version, (S_IWUSR|S_IRUGO),
 	dt2w_version_show, dt2w_version_dump);
 
+static ssize_t dt2w_persisting_wakelock_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	size_t count = 0;
+
+	count += sprintf(buf, "%d\n", dt2w_wake_lock_persist);
+
+	return count;
+}
+
+static ssize_t dt2w_persisting_wakelock_dump(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int val = 0;
+	int ret = kstrtoint(buf, 0, &val);
+	if (ret < 0)
+		return ret;
+
+	if (val != 0 && val != 1)
+		return -EINVAL;
+
+	dt2w_wake_lock_persist = val;
+	return count;
+}
+
+static DEVICE_ATTR(doubletap2wake_persist_wakelock, (S_IWUSR|S_IRUGO),
+	dt2w_persisting_wakelock_show, dt2w_persisting_wakelock_dump);
+
 /*
  * INIT / EXIT stuff below here
  */
@@ -445,6 +484,12 @@ static int __init doubletap2wake_init(void)
 	if (rc) {
 		pr_warn("%s: sysfs_create_file failed for doubletap2wake_version\n", __func__);
 	}
+	rc = sysfs_create_file(android_touch_kobj, &dev_attr_doubletap2wake_persist_wakelock.attr);
+	if (rc) {
+		pr_warn("%s: sysfs_create_file failed for doubletap2wake_version\n", __func__);
+	}
+
+	wake_lock_init(&dt2w_wake_lock, WAKE_LOCK_SUSPEND, "dt2w_wake_lock");
 
 err_input_dev:
 	input_free_device(doubletap2wake_pwrdev);
@@ -456,6 +501,7 @@ err_alloc_dev:
 
 static void __exit doubletap2wake_exit(void)
 {
+	wake_lock_destroy(&dt2w_wake_lock);
 #ifndef ANDROID_TOUCH_DECLARED
 	kobject_del(android_touch_kobj);
 #endif
