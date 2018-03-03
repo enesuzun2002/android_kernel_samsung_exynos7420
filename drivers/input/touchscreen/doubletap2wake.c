@@ -124,6 +124,38 @@ void dt2w_set_just_enabled(bool value) {
 }
 
 /*
+ * Wakelock handling
+ */
+static void dt2w_wake_lock(void) {
+	if (dt2w_static_wakelock_enabled) {
+		return;
+	}
+
+	dt2w_info("enabling static wakelock"); 
+	wake_lock(&dt2w_wakelock_suspend);
+	dt2w_static_wakelock_enabled = true;
+}
+
+static void dt2w_wake_unlock(void) {
+	if (!dt2w_static_wakelock_enabled) {
+		return;
+	}
+
+	dt2w_info("disabling static wakelock"); 
+	wake_unlock(&dt2w_wakelock_suspend);
+	dt2w_static_wakelock_enabled = false;
+}
+
+static void dt2w_wake_lock_timeout(long timeout) {
+	if (dt2w_static_wakelock_enabled) {
+		return;
+	}
+
+	dt2w_debug("setting wakelock for %ld jiffies", timeout);
+	wake_lock_timeout(&dt2w_wakelock_input, timeout);
+}
+
+/*
  * DT2W Handling
  */
 #define dt2w_trigger_key_power(_state) \
@@ -229,8 +261,7 @@ static void dt2w_input_event(struct input_handle *handle,
 	// only trigger the wakelock if they are requiested
 	// AND we aren't already using the static one
 	if (dt2w_wakelocks && !dt2w_wakelocks_static) {
-		dt2w_debug("setting wakelock for %d jiffies", (HZ / 2));
-		wake_lock_timeout(&dt2w_wakelock_input, HZ / 2);
+		dt2w_wake_lock_timeout(HZ / 2);
 	}
 
 	// check if the event is a screen-was-tapped-event
@@ -352,7 +383,8 @@ static struct input_handler dt2w_input_handler = {
 		return scnprintf(buf, PAGE_SIZE, "%d\n", dt2w_##_name); \
 	}
 
-#define __dt2w_sysfs_store(_name, _conv) \
+#define __dt2w_sysfs_store(_name, _conv, _handler) \
+	static void (*dt2w_sysfs_##_name##_store_handler)(void) = _handler; \
 	static ssize_t dt2w_sysfs_##_name##_store(struct class *class, \
 	                                          struct class_attribute *attr, \
 	                                          const char *buf, \
@@ -363,16 +395,26 @@ static struct input_handler dt2w_input_handler = {
 		if (ret < 0) \
 			return ret; \
 		dt2w_##_name = _conv(val); \
+		if (dt2w_sysfs_##_name##_store_handler) \
+			dt2w_sysfs_##_name##_store_handler(); \
 		return count; \
 	}
 
 #define dt2w_sysfs_conv_int(data)  ((int)data)
-#define dt2w_sysfs_store_int(_name) \
-	__dt2w_sysfs_store(_name, dt2w_sysfs_conv_int);
+#define dt2w_sysfs_store_int(_name, _handler) \
+	__dt2w_sysfs_store(_name, dt2w_sysfs_conv_int, _handler);
 
 #define dt2w_sysfs_conv_bool(data)  (!!(data))
-#define dt2w_sysfs_store_bool(_name) \
-	__dt2w_sysfs_store(_name, dt2w_sysfs_conv_bool);
+#define dt2w_sysfs_store_bool(_name, _handler) \
+	__dt2w_sysfs_store(_name, dt2w_sysfs_conv_bool, _handler);
+
+static void dt2w_sysfs_wakelocks_handler(void) {
+	if (!dt2w_wakelocks_static) {
+		dt2w_wake_unlock();
+	} else if (dt2w_enabled && dt2w_screen_off && dt2w_wakelocks && dt2w_wakelocks_static) {
+		dt2w_wake_lock();
+	}
+}
 
 dt2w_sysfs_show(enabled);
 dt2w_sysfs_show(wakelocks);
@@ -382,13 +424,13 @@ dt2w_sysfs_show(tap_offset);
 dt2w_sysfs_show(power_key_duration);
 dt2w_sysfs_show(debugging);
 
-dt2w_sysfs_store_bool(enabled);
-dt2w_sysfs_store_bool(wakelocks);
-dt2w_sysfs_store_bool(wakelocks_static);
-dt2w_sysfs_store_int(tap_interval);
-dt2w_sysfs_store_int(tap_offset);
-dt2w_sysfs_store_int(power_key_duration);
-dt2w_sysfs_store_bool(debugging);
+dt2w_sysfs_store_bool(enabled, NULL);
+dt2w_sysfs_store_bool(wakelocks, dt2w_sysfs_wakelocks_handler);
+dt2w_sysfs_store_bool(wakelocks_static, dt2w_sysfs_wakelocks_handler);
+dt2w_sysfs_store_int(tap_interval, NULL);
+dt2w_sysfs_store_int(tap_offset, NULL);
+dt2w_sysfs_store_int(power_key_duration, NULL);
+dt2w_sysfs_store_bool(debugging, NULL);
 
 static struct class_attribute dt2w_sysfs_class_attrs[] = {
     dt2w_sysfs_attr(enabled),
@@ -439,12 +481,8 @@ static int dt2w_lcd_notifier_call(struct notifier_block *nb,
 			dt2w_was_just_enabled = true;
 			dt2w_info("dt2w_screen_off = %d", dt2w_screen_off);
 
-			if (dt2w_wakelocks && dt2w_wakelocks_static && dt2w_enabled) {
-				dt2w_info("enabling static wakelock"); 
-				wake_lock(&dt2w_wakelock_suspend);
-				dt2w_static_wakelock_enabled = true;
-			}
-
+			if (dt2w_enabled && dt2w_wakelocks && dt2w_wakelocks_static)
+				dt2w_wake_lock();
 			break;
 
 		case FB_BLANK_UNBLANK:
@@ -452,12 +490,7 @@ static int dt2w_lcd_notifier_call(struct notifier_block *nb,
 			dt2w_was_just_enabled = false;
 			dt2w_info("dt2w_screen_off = %d", dt2w_screen_off);
 
-			if (dt2w_static_wakelock_enabled) {
-				dt2w_info("disabling static wakelock"); 
-				wake_unlock(&dt2w_wakelock_suspend);
-				dt2w_static_wakelock_enabled = false;
-			}
-
+			dt2w_wake_unlock();
 			break;
 
 		default:
