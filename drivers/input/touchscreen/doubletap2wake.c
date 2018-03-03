@@ -258,7 +258,7 @@ static void dt2w_input_event(struct input_handle *handle,
 		return;
 	}
 
-	// only trigger the wakelock if they are requiested
+	// only trigger the wakelock if they are requested
 	// AND we aren't already using the static one
 	if (dt2w_wakelocks && !dt2w_wakelocks_static) {
 		dt2w_wake_lock_timeout(HZ / 2);
