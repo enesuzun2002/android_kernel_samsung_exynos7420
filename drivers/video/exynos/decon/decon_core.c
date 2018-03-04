@@ -4818,7 +4818,6 @@ static int decon_ioctl(struct fb_info *info, unsigned int cmd,
 				ret = decon_doze_enable(decon);
 				if (ret) {
 					decon_err("ERR:%s:failed to decon_doze_enable():%d\n", __func__, ret);
-					ret = 0;
 				}
 				break;
 			case DECON_POWER_MODE_DOZE_SUSPEND :
@@ -4834,7 +4833,6 @@ static int decon_ioctl(struct fb_info *info, unsigned int cmd,
 						decon->ignore_vsync = false;
 						decon->vsync_backup = false;
 					}
-					ret = 0;
 				}
 				break;
 		}
