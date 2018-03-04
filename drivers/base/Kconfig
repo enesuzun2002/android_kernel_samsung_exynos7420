@@ -293,4 +293,11 @@ config CMA_AREAS
 
 endif
 
+config PM_KWAKEBLOCK
+	tristate "Generic Kernel Wakelock-Blocker Driver"
+	default y
+	help
+		Allows to block kernel-wakeclosk and wakeup-sources from
+		userspace
+
 endmenu
