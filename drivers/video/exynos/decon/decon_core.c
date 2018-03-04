@@ -4805,10 +4805,7 @@ static int decon_ioctl(struct fb_info *info, unsigned int cmd,
 		break;
 #ifdef CONFIG_LCD_DOZE_MODE
 	case S3CFB_POWER_MODE:
-		if (get_user(pwr_mode, (int __user *)arg)) {
-			ret = -EFAULT;
-			break;
-		}
+		pwr_mode = (u32)arg;
 		decon_info("%s : pwr mode : %d\n", __func__, pwr_mode);
 		switch (pwr_mode) {
 			case DECON_POWER_MODE_DOZE :
