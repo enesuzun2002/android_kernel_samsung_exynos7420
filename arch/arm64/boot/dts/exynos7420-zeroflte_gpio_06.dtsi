@@ -97,7 +97,7 @@
 		PIN_SLP(gpd1-1, INPUT, DOWN);	/* AP_TXD */
 		PIN_SLP(gpd1-2, INPUT, DOWN);	/* TOUCH_SDA */
 		PIN_SLP(gpd1-3, INPUT, DOWN);	/* TOUCH_SCL */
-		PIN_SLP(gpd1-4, INPUT, DOWN);	/* NC */
+		PIN_SLP(gpd1-4, PREV, NONE);	/* NC */
 		PIN_SLP(gpd1-5, INPUT, DOWN);	/* NC */
 
 		PIN_SLP(gpd2-0, INPUT, NONE);	/* SPK_AMP_SDA */
@@ -384,7 +384,7 @@
 		PIN_SLP(gpr2-3, INPUT, DOWN);	/* NC */
 		PIN_SLP(gpr2-4, INPUT, DOWN);	/* NC */
 
-		PIN_SLP(gpr3-0, INPUT, DOWN);	/* M_DISPLAY_RST */
+		PIN_SLP(gpr3-0, PREV, NONE);	/* M_DISPLAY_RST */
 		PIN_SLP(gpr3-1, INPUT, DOWN);	/* DISPLAY_DET */
 		PIN_SLP(gpr3-2, INPUT, DOWN);	/* NC */
 		PIN_SLP(gpr3-3, INPUT, NONE);	/* DUAL_SIM */
