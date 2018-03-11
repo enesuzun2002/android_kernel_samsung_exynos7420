@@ -48,7 +48,7 @@ static bool dt2w_wakelocks = true;
 
 // indicates if DT2W should create an always-locked wake-lock
 // while screen is off (WARNING: this will battery drain like butter)
-static bool dt2w_wakelocks_static = true;
+static bool dt2w_wakelocks_static = false;
 
 // maximal interval between two taps in which DT2W recognizes those
 // taps as double-taps
