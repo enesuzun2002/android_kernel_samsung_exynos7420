@@ -46,8 +46,6 @@
 #include <linux/uaccess.h>
 #include <linux/regmap.h>
 #include <linux/sec_sysfs.h>
-#include <linux/time.h>
-#include <linux/syscalls.h>
 
 #define SEC_LED_SPECIFIC
 
@@ -122,16 +120,6 @@ unsigned int octa_color = 0x0;
 
 // Enable Fading by default
 unsigned int led_enable_fade = 1;
-unsigned int led_fade_time_up = 800;
-unsigned int led_fade_time_down = 800;
-unsigned int led_always_disable = 0;
-unsigned int led_debug_enable = 0;
-int led_block_leds_time_start = -1;
-int led_block_leds_time_stop = -1;
-struct device *GBLdev = NULL;
-
-static struct delayed_work check_led_time;
-static bool is_work_active = false;
 
 enum max77843_led_color {
 	WHITE,
@@ -335,17 +323,17 @@ static int max77843_rgb_ramp(struct device *dev, int ramp_up, int ramp_down)
 
 	pr_info("leds-max77843-rgb: %s\n", __func__);
 
-	if (ramp_up <= led_fade_time_up) {
+	if (ramp_up <= 800) {
 		ramp_up /= 100;
 	} else {
-		ramp_up = (ramp_up - led_fade_time_up) * 2 + led_fade_time_up;
+		ramp_up = (ramp_up - 800) * 2 + 800;
 		ramp_up /= 100;
 	}
 
-	if (ramp_down <= led_fade_time_down) {
+	if (ramp_down <= 800) {
 		ramp_down /= 100;
 	} else {
-		ramp_down = (ramp_down - led_fade_time_down) * 2 + led_fade_time_down;
+		ramp_down = (ramp_down - 800) * 2 + 800;
 		ramp_down /= 100;
 	}
 
@@ -594,50 +582,6 @@ static ssize_t store_max77843_rgb_brightness(struct device *dev,
 	return count;
 }
 
-static bool check_restrictions(void)
-{
-	struct timeval curtime;
-	struct tm tmv;
-	int curhour;
-	bool ret = true;
-
-	if (led_always_disable)
-	{
-		ret = false;
-		max77843_rgb_reset(GBLdev);
-		goto skipitall;
-	}
-	if (led_block_leds_time_start != -1 && led_block_leds_time_stop != -1)
-	{
-		do_gettimeofday(&curtime);
-		time_to_tm(curtime.tv_sec, 0, &tmv);
-
-		curhour = tmv.tm_hour + ((sys_tz.tz_minuteswest / 60) * -1);
-		if (curhour < 0)
-			curhour = 24 + curhour;
-		if (curhour > 23)
-			curhour = curhour - 24;
-
-		if (led_debug_enable) pr_alert("CHECK LED TIME RESTRICTION: %d:%d:%d:%ld -- %d -- %d -- %d\n", tmv.tm_hour, tmv.tm_min,
-				         tmv.tm_sec, curtime.tv_usec, sys_tz.tz_minuteswest, sys_tz.tz_dsttime, curhour);
-		if (led_block_leds_time_start > led_block_leds_time_stop)
-		{
-			if (curhour >= led_block_leds_time_start || curhour < led_block_leds_time_stop)
-				ret = false;
-		}
-		else
-		{
-			if (curhour >= led_block_leds_time_start && curhour < led_block_leds_time_stop)
-				ret = false;
-		}
-		/* Set all LEDs Off */
-		if (!ret && GBLdev != NULL)
-			max77843_rgb_reset(GBLdev);
-	}
-skipitall:
-	return ret;
-}
-
 static ssize_t store_max77843_rgb_pattern(struct device *dev,
 					struct device_attribute *devattr,
 					const char *buf, size_t count)
@@ -652,15 +596,10 @@ static ssize_t store_max77843_rgb_pattern(struct device *dev,
 		dev_err(dev, "fail to get led_pattern mode.\n");
 		return count;
 	}
-	GBLdev = dev;
 
 	/* Set all LEDs Off */
 	max77843_rgb_reset(dev);
 	if (mode == PATTERN_OFF)
-		return count;
-
-
-	if (!check_restrictions())
 		return count;
 
 	/* Set to low power consumption mode */
@@ -681,27 +620,11 @@ static ssize_t store_max77843_rgb_pattern(struct device *dev,
 		max77843_rgb_set_state(&max77843_rgb->led[RED], led_dynamic_current, LED_BLINK);
 		break;
 	case MISSED_NOTI:
-		if (led_enable_fade)
-		{
-			max77843_rgb_ramp(dev, led_fade_time_up, led_fade_time_down);
-			max77843_rgb_blink(dev, led_fade_time_up, 5000);
-		}
-		else
-		{
-			max77843_rgb_blink(dev, 500, 5000);
-		}
+		max77843_rgb_blink(dev, 500, 5000);
 		max77843_rgb_set_state(&max77843_rgb->led[BLUE], led_dynamic_current, LED_BLINK);
 		break;
 	case LOW_BATTERY:
-		if (led_enable_fade)
-		{
-			max77843_rgb_ramp(dev, led_fade_time_up, led_fade_time_down);
-			max77843_rgb_blink(dev, led_fade_time_up, 5000);
-		}
-		else
-		{
-			max77843_rgb_blink(dev, 500, 5000);
-		}
+		max77843_rgb_blink(dev, 500, 5000);
 		max77843_rgb_set_state(&max77843_rgb->led[RED], led_dynamic_current, LED_BLINK);
 		break;
 	case FULLY_CHARGED:
@@ -825,7 +748,6 @@ static ssize_t store_max77843_rgb_blink(struct device *dev,
 			}
 		}
 	}
-	
 
 	if (led_r_brightness) {
 		max77843_rgb_set_state(&max77843_rgb->led[RED], led_r_brightness, LED_BLINK);
@@ -836,14 +758,10 @@ static ssize_t store_max77843_rgb_blink(struct device *dev,
 	if (led_b_brightness) {
 		max77843_rgb_set_state(&max77843_rgb->led[BLUE], led_b_brightness, LED_BLINK);
 	}
-	/*Should we ramp?*/
-	if (led_enable_fade && delay_on_time > 0)
-	{
-		max77843_rgb_ramp(dev, led_fade_time_up, led_fade_time_down);
+	if (led_enable_fade && delay_on_time > 0) {
+		max77843_rgb_ramp(dev, delay_on_time, delay_off_time);
 	}
-	/*Set LED blink mode*/
 	max77843_rgb_blink(dev, delay_on_time, delay_off_time);
-
 	pr_info("leds-max77843-rgb: %s, delay_on_time= %x, delay_off_time= %x\n", __func__, delay_on_time, delay_off_time);
 	dev_dbg(dev, "led_blink is called, Color:0x%X Brightness:%i\n",
 			led_brightness, led_dynamic_current);
@@ -1026,166 +944,6 @@ static ssize_t led_fade_store(struct device *dev,
 
 	return count;
 }
-
-static ssize_t led_debug_enable_show(struct device *dev,
-			struct device_attribute *attr, char *buf)
-{
-	int ret;
-	ret = sprintf(buf, "%d\n", led_debug_enable);
-	pr_info("[LED] %s: led_fade=%d\n", __func__, led_debug_enable);
-
-	return ret;
-}
-
-static ssize_t led_debug_enable_store(struct device *dev,
-			struct device_attribute *attr,
-			const char *buf, size_t count)
-{
-	int retval;
-	int enabled = 0;
-	retval = sscanf(buf, "%d", &enabled);
-	if (retval != 0 && (enabled == 0 || enabled == 1))
-		led_debug_enable = enabled;
-
-	printk(KERN_DEBUG "led_debug_enable is called\n");
-
-	return count;
-}
-
-static ssize_t led_fade_time_up_show(struct device *dev,
-			struct device_attribute *attr, char *buf)
-{
-	int ret;
-	ret = sprintf(buf, "%d\n", led_fade_time_up);
-	pr_info("[LED] %s: led_fade=%d\n", __func__, led_fade_time_up);
-
-	return ret;
-}
-
-static ssize_t led_fade_time_up_store(struct device *dev,
-			struct device_attribute *attr,
-			const char *buf, size_t count)
-{
-	int retval;
-	int val = 0;
-	retval = sscanf(buf, "%d", &val);
-	if (retval != 0 && val >= 100  &&  val <= 4000)
-		led_fade_time_up = val;
-	printk(KERN_DEBUG "led_time_on is called\n");
-
-	return count;
-}
-
-static ssize_t led_fade_time_down_show(struct device *dev,
-			struct device_attribute *attr, char *buf)
-{
-	int ret;
-	ret = sprintf(buf, "%d\n", led_fade_time_down);
-	pr_info("[LED] %s: led_fade=%d\n", __func__, led_fade_time_down);
-
-	return ret;
-}
-
-static ssize_t led_fade_time_down_store(struct device *dev,
-			struct device_attribute *attr,
-			const char *buf, size_t count)
-{
-	int retval;
-	int val = 0;
-	retval = sscanf(buf, "%d", &val);
-	if (retval != 0 && val >= 100  &&  val <= 4000)
-		led_fade_time_down = val;
-	printk(KERN_DEBUG "led_time_off is called\n");
-
-	return count;
-}
-
-static ssize_t led_always_disable_show(struct device *dev,
-			struct device_attribute *attr, char *buf)
-{
-	int ret;
-	ret = sprintf(buf, "%d\n", led_always_disable);
-	pr_info("[LED] %s: led_fade=%d\n", __func__, led_always_disable);
-
-	return ret;
-}
-
-static ssize_t led_always_disable_store(struct device *dev,
-			struct device_attribute *attr,
-			const char *buf, size_t count)
-{
-	int retval;
-	int val = 0;
-	retval = sscanf(buf, "%d", &val);
-	if (retval != 0 && (val == 0 || val == 1))
-		led_always_disable = val;
-	printk(KERN_DEBUG "led_time_off is called\n");
-
-	return count;
-}
-
-static ssize_t led_block_leds_time_start_show(struct device *dev,
-			struct device_attribute *attr, char *buf)
-{
-	int ret;
-	ret = sprintf(buf, "%d\n", led_block_leds_time_start);
-	pr_info("[LED] %s: led_fade=%d\n", __func__, led_block_leds_time_start);
-
-	return ret;
-}
-
-static ssize_t led_block_leds_time_start_store(struct device *dev,
-			struct device_attribute *attr,
-			const char *buf, size_t count)
-{
-	int retval;
-	int val = 0;
-	retval = sscanf(buf, "%d", &val);
-	if (retval != 0 && (val == -1 || (val >= 0 && val <= 23))) {
-		led_block_leds_time_start = val;
-	}
-	if (!is_work_active && led_block_leds_time_start != -1 && led_block_leds_time_stop != -1)
-	{
-		is_work_active = true;
-		schedule_delayed_work_on(0, &check_led_time, msecs_to_jiffies(30000));
-	}
-	else if (led_block_leds_time_start == -1 || led_block_leds_time_stop == -1)
-		is_work_active = false;
-
-	return count;
-}
-
-static ssize_t led_block_leds_time_stop_show(struct device *dev,
-			struct device_attribute *attr, char *buf)
-{
-	int ret;
-	ret = sprintf(buf, "%d\n", led_block_leds_time_stop);
-	pr_info("[LED] %s: led_fade=%d\n", __func__, led_block_leds_time_stop);
-
-	return ret;
-}
-
-static ssize_t led_block_leds_time_stop_store(struct device *dev,
-			struct device_attribute *attr,
-			const char *buf, size_t count)
-{
-	int retval;
-	int val = 0;
-	retval = sscanf(buf, "%d", &val);
-	if (retval != 0 && (val == -1 || (val >= 0 && val <= 23))) {
-		led_block_leds_time_stop = val;
-	}
-	if (!is_work_active && led_block_leds_time_start != -1 && led_block_leds_time_stop != -1)
-	{
-		is_work_active = true;
-		schedule_delayed_work_on(0, &check_led_time, msecs_to_jiffies(30000));
-	}
-	else if (led_block_leds_time_start == -1 || led_block_leds_time_stop == -1)
-		is_work_active = false;
-
-	return count;
-}
-
 /* permission for sysfs node */
 static DEVICE_ATTR(delay_on, 0640, led_delay_on_show, led_delay_on_store);
 static DEVICE_ATTR(delay_off, 0640, led_delay_off_show, led_delay_off_store);
@@ -1193,12 +951,6 @@ static DEVICE_ATTR(blink, 0640, NULL, led_blink_store);
 
 //Fade LED code
 static DEVICE_ATTR(led_fade, 0664, led_fade_show, led_fade_store);
-static DEVICE_ATTR(led_fade_time_up, 0664, led_fade_time_up_show, led_fade_time_up_store);
-static DEVICE_ATTR(led_fade_time_down, 0664, led_fade_time_down_show, led_fade_time_down_store);
-static DEVICE_ATTR(led_always_disable, 0664, led_always_disable_show, led_always_disable_store);
-static DEVICE_ATTR(led_debug_enable, 0664, led_debug_enable_show, led_debug_enable_store);
-static DEVICE_ATTR(led_block_leds_time_start, 0664, led_block_leds_time_start_show, led_block_leds_time_start_store);
-static DEVICE_ATTR(led_block_leds_time_stop, 0664, led_block_leds_time_stop_show, led_block_leds_time_stop_store);
 
 #ifdef SEC_LED_SPECIFIC
 /* below nodes is SAMSUNG specific nodes */
@@ -1234,12 +986,6 @@ static struct attribute *sec_led_attributes[] = {
 	&dev_attr_led_brightness.attr,
 	&dev_attr_led_lowpower.attr,
 	&dev_attr_led_fade.attr,
-	&dev_attr_led_fade_time_up.attr,
-	&dev_attr_led_fade_time_down.attr,
-	&dev_attr_led_always_disable.attr,
-	&dev_attr_led_debug_enable.attr,
-	&dev_attr_led_block_leds_time_start.attr,
-	&dev_attr_led_block_leds_time_stop.attr,
 	NULL,
 };
 
@@ -1389,17 +1135,9 @@ static struct platform_driver max77843_fled_driver = {
 	.remove		= __devexit_p(max77843_rgb_remove),
 };
 
-static void check_led_timer(struct work_struct *work)
-{
-	check_restrictions();
-	if (is_work_active && led_block_leds_time_start != -1 && led_block_leds_time_stop != -1)
-		schedule_delayed_work_on(0, &check_led_time, msecs_to_jiffies(30000));
-}
-
 static int __init max77843_rgb_init(void)
 {
 	pr_info("leds-max77843-rgb: %s\n", __func__);
-	INIT_DELAYED_WORK(&check_led_time, check_led_timer);
 	return platform_driver_register(&max77843_fled_driver);
 }
 module_init(max77843_rgb_init);
