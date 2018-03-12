@@ -106,6 +106,9 @@ static u8 led_lowpower_mode = 0x0;
 
 static unsigned int octa_color = 0x0;
 
+// Enable Fading by default
+static unsigned int led_enable_fade = 1;
+
 enum max77833_led_color {
 	WHITE,
 	RED,
@@ -753,7 +756,11 @@ static ssize_t store_max77833_rgb_blink(struct device *dev,
 		max77833_rgb_set_state(&max77833_rgb->led[BLUE], led_b_brightness, LED_DISABLE);
 	}
 
-	max77833_rgb_blink(dev, delay_on_time, delay_off_time);
+	if (led_enable_fade && delay_off_time > 0) {
+		max77833_rgb_ramp(dev, delay_on_time, delay_off_time);
+	} else {
+		max77833_rgb_blink(dev, delay_on_time, delay_off_time);
+	}
 	max77833_update_reg(max77833_rgb->i2c,
 		MAX77833_RGBLED_REG_LEDEN, led_en,
 		(0x3 << (2 * RED)) | (0x3 << (2 * GREEN)) | (0x3 << (2 * BLUE)));
@@ -916,10 +923,37 @@ static ssize_t led_blink_store(struct device *dev,
 	return count;
 }
 
+static ssize_t led_fade_show(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	int ret;
+	ret = sprintf(buf, "%d\n", led_enable_fade);
+	pr_info("[LED] %s: led_fade=%d\n", __func__, led_enable_fade);
+
+	return ret;
+}
+
+static ssize_t led_fade_store(struct device *dev,
+			struct device_attribute *attr,
+			const char *buf, size_t count)
+{
+	int retval;
+	int enabled = 0;
+	retval = sscanf(buf, "%d", &enabled);
+	if (retval != 0 && (enabled == 0 || enabled == 1))
+		led_enable_fade = enabled;
+
+	printk(KERN_DEBUG "led_fade is called\n");
+
+	return count;
+}
 /* permission for sysfs node */
 static DEVICE_ATTR(delay_on, 0640, led_delay_on_show, led_delay_on_store);
 static DEVICE_ATTR(delay_off, 0640, led_delay_off_show, led_delay_off_store);
 static DEVICE_ATTR(blink, 0640, NULL, led_blink_store);
+
+//Fade LED code
+static DEVICE_ATTR(led_fade, 0664, led_fade_show, led_fade_store);
 
 #ifdef SEC_LED_SPECIFIC
 /* below nodes is SAMSUNG specific nodes */
@@ -954,6 +988,7 @@ static struct attribute *sec_led_attributes[] = {
 	&dev_attr_led_blink.attr,
 	&dev_attr_led_brightness.attr,
 	&dev_attr_led_lowpower.attr,
+	&dev_attr_led_fade.attr,
 	NULL,
 };
 
