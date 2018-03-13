@@ -757,7 +757,7 @@ static ssize_t store_max77833_rgb_blink(struct device *dev,
 	}
 
 	if (led_enable_fade && delay_off_time > 0) {
-		max77833_rgb_ramp(dev, delay_on_time, delay_off_time);
+		max77833_rgb_ramp(dev, delay_on_time * 4, delay_off_time * 4);
 	} else {
 		max77833_rgb_blink(dev, delay_on_time, delay_off_time);
 	}
