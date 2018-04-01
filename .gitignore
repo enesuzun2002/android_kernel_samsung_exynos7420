@@ -193,3 +193,9 @@ x509.genkey
 # Exynos7420
 #
 !/init/vmm.elf
+
+output/*
+
+*.md5 
+
+dt.img
