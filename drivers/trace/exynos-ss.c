@@ -984,7 +984,7 @@ static void exynos_ss_dump_task_info(void)
 	/* processes */
 	frst_tsk = &init_task;
 	curr_tsk = frst_tsk;
-	while (curr_tsk != NULL) {
+	// while (curr_tsk != NULL) {
 		exynos_ss_dump_one_task_info(curr_tsk,  true);
 		/* threads */
 		if (curr_tsk->thread_group.next != NULL) {
@@ -1001,9 +1001,9 @@ static void exynos_ss_dump_task_info(void)
 		}
 		curr_tsk = container_of(curr_tsk->tasks.next,
 					struct task_struct, tasks);
-		if (curr_tsk == frst_tsk)
-			break;
-	}
+		/* if (curr_tsk == frst_tsk)
+			break; */
+	// }
 	pr_info(" ----------------------------------------------------------------------------------------------------------------------------\n");
 }
 
