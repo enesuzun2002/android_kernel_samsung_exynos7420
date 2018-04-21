@@ -76,7 +76,7 @@ static int hpm_freq_table[] = {
 
 static gpu_attribute gpu_config_attributes[] = {
 	{GPU_MAX_CLOCK, 772},
-	{GPU_MAX_CLOCK_LIMIT, 700},
+	{GPU_MAX_CLOCK_LIMIT, 772},
 	{GPU_MIN_CLOCK, 100},
 	{GPU_DVFS_START_CLOCK, 100},
 	{GPU_DVFS_BL_CONFIG_CLOCK, 100},
@@ -131,7 +131,7 @@ static gpu_attribute gpu_config_attributes[] = {
 	{GPU_DVFS_POLLING_TIME, 30},
 	{GPU_PMQOS_INT_DISABLE, 1},
 	{GPU_PMQOS_MIF_MAX_CLOCK, 1464000},
-	{GPU_PMQOS_MIF_MAX_CLOCK_BASE, 700},
+	{GPU_PMQOS_MIF_MAX_CLOCK_BASE, 772},
 	{GPU_CL_DVFS_START_BASE, 100},
 	{GPU_DEBUG_LEVEL, DVFS_WARNING},
 	{GPU_TRACE_LEVEL, TRACE_ALL},
