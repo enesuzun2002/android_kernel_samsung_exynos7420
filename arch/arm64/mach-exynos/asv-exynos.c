@@ -16,10 +16,8 @@
 #include <linux/err.h>
 #include <linux/io.h>
 #include <linux/slab.h>
-#ifdef CONFIG_SEC_PM_DEBUG
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
-#endif
 
 #include <plat/cpu.h>
 
@@ -237,7 +235,6 @@ void set_rcc_info(void)
 }
 #endif
 
-#ifdef CONFIG_SEC_PM_DEBUG
 static int asv_group_show(struct seq_file *s, void *d)
 {
 	struct asv_info *ai;
@@ -335,7 +332,6 @@ const static struct file_operations asv_summary_fops = {
 	.llseek		= seq_lseek,
 	.release	= single_release,
 };
-#endif /* CONFIG_SEC_PM_DEBUG */
 
 static int __init asv_init(void)
 {
@@ -382,10 +378,8 @@ static int __init asv_init(void)
 	}
 
 	set_asv_info(exynos_asv_common, true);
-#ifdef CONFIG_SEC_PM_DEBUG
 	debugfs_create_file("asv_group", S_IRUSR, NULL, NULL, &asv_group_fops);
 	debugfs_create_file("asv_summary", S_IRUSR, NULL, NULL, &asv_summary_fops);
-#endif
 
 out:
 	return ret;
