@@ -159,7 +159,7 @@ static ssize_t kwakeblock_sysfs_block_store(struct class *class,
 	// check if this wakeblock is already registered
 	list_for_each_entry_safe(wakeblock, n, &kwakeblock_list, list)
 	{
-		if (!memcmp(wakeblock->name, buf, wakeblock->length)) {
+		if (!memcmp(wakeblock->name, buf, wakeblock->length - 1)) {
 			// already blocked, exit
 			pr_info("%s: kwakeblock \"%.*s\" already added", __func__, (int)buf_string_len, buf);
 			return count;
@@ -188,14 +188,21 @@ static ssize_t kwakeblock_sysfs_unblock_store(struct class *class,
                                               size_t count)
 {
 	struct kwakeblock_item *wakeblock, *n;
+	const char *buf_string;
+	size_t buf_string_len = count;
+
+	// remove newline from input
+	buf_string = memchr(buf, '\n', count);
+	if (buf_string)
+		buf_string_len = buf_string - buf;
 
 	// check if the given name in between limits
-	if (count <= 0 || count >= KWAKEBLOCK_MAX_NAME_LEN)
+	if (buf_string_len <= 0 || buf_string_len >= KWAKEBLOCK_MAX_NAME_LEN)
 		return -EINVAL;
 
 	list_for_each_entry_safe(wakeblock, n, &kwakeblock_list, list)
 	{
-		if (!memcmp(wakeblock->name, buf, wakeblock->length)) {
+		if (!memcmp(wakeblock->name, buf, wakeblock->length - 1)) {
 			pr_info("%s: removing kwakeblock \"%s\"", __func__, wakeblock->name);
 
 			// remove from wakeblock-list
@@ -209,7 +216,7 @@ static ssize_t kwakeblock_sysfs_unblock_store(struct class *class,
 		}
 	}
 
-	pr_info("%s: no kwakeblock with the name \"%s\" found", __func__, wakeblock->name);
+	pr_info("%s: no kwakeblock with the name \"%.*s\" found", __func__, (int)buf_string_len, buf);
 	return count;
 }
 
