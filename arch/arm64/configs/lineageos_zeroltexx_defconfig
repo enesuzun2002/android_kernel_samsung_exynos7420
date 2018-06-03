@@ -457,7 +457,7 @@ CONFIG_SECCOMP=y
 #
 CONFIG_CMDLINE=""
 CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE=y
-CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE_NAMES="exynos7420-zeroflte_eur_open_00 exynos7420-zeroflte_eur_open_01 exynos7420-zeroflte_eur_open_02 exynos7420-zeroflte_eur_open_03 exynos7420-zeroflte_eur_open_04 exynos7420-zeroflte_eur_open_05 exynos7420-zeroflte_eur_open_06 exynos7420-zeroflte_eur_open_07"
+CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE_NAMES="exynos7420-zerolte_eur_open_01 exynos7420-zerolte_eur_open_02 exynos7420-zerolte_eur_open_03 exynos7420-zerolte_eur_open_04 exynos7420-zerolte_eur_open_05 exynos7420-zerolte_eur_open_06 exynos7420-zerolte_eur_open_07 exynos7420-zerolte_eur_open_08"
 CONFIG_ARM64_APPENDED_DTB=y
 
 #
@@ -2738,13 +2738,13 @@ CONFIG_EXYNOS_DECON_MDNIE_LITE=y
 CONFIG_EXYNOS_DECON_LCD_SYSFS=y
 # CONFIG_EXYNOS_DECON_LCD_MCD is not set
 CONFIG_LCD_HMT=y
-# CONFIG_LCD_ALPM is not set
+# CONFIG_LCD_ALPM=y
 CONFIG_LCD_BURNIN_CORRECTION=y
 CONFIG_LCD_HBM_INTERPOLATION=y
 CONFIG_PANEL_AID_DIMMING=y
 # CONFIG_LCD_DOZE_MODE is not set
-# CONFIG_PANEL_S6E3HF2_DYNAMIC is not set
-CONFIG_PANEL_S6E3HA2_DYNAMIC=y
+CONFIG_PANEL_S6E3HF2_DYNAMIC=y
+# CONFIG_PANEL_S6E3HA2_DYNAMIC is not set
 # CONFIG_PANEL_S6E3HA3_DYNAMIC is not set
 # CONFIG_PANEL_S6E3HF3_DYNAMIC is not set
 # CONFIG_PANEL_S6E3FA3_A8XE is not set
