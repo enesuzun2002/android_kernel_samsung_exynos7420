@@ -421,3 +421,8 @@ header-y += x25.h
 header-y += xattr.h
 header-y += xfrm.h
 header-y += hw_breakpoint.h
+
+## MDM9x35
+header-y += msm_rmnet.h
+header-y += rmnet_data.h
+

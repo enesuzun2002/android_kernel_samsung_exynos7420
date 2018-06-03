@@ -149,6 +149,49 @@ static inline void atomic_clear_mask(unsigned long mask, unsigned long *addr)
 	: "cc");
 }
 
+static inline void atomic_push(atomic_t *v, int value, int width)
+{
+	unsigned long tmp;
+	int result;
+
+	value &= (1 << width) - 1;
+
+	__asm__ __volatile("@ atomic_push\n"
+"1:	ldrex	%0, [%3]\n"
+"	lsl	%0, %5\n"
+"	orr	%0, %0, %4\n"
+"	strex	%1, %0, [%3]\n"
+"	teq	%1, #0\n"
+"	bne	1b"
+	: "=&r" (result), "=&r" (tmp), "+Qo" (v->counter)
+	: "r" (&v->counter), "Ir" (value), "Ir" (width)
+	: "cc");
+}
+
+static inline int atomic_pop(atomic_t *v, int width)
+{
+	unsigned long tmp;
+	int result;
+	int value;
+
+	smp_mb();
+
+	__asm__ __volatile("@ atomic_pop\n"
+"1:	ldrex	%1, [%4]\n"
+"	mov	%0, %1\n"
+"	lsr	%1, %1, %5\n"
+"	strex	%2, %1, [%4]\n"
+"	teq	%2, #0\n"
+"	bne	1b"
+	: "=&r" (result), "=&r" (value), "=&r" (tmp), "+Qo" (v->counter)
+	: "r" (&v->counter), "Ir" (width)
+	: "cc");
+
+	smp_mb();
+
+	return result & ((1 << width) - 1);
+}
+
 #else /* ARM_ARCH_6 */
 
 #ifdef CONFIG_SMP
@@ -204,6 +247,28 @@ static inline void atomic_clear_mask(unsigned long mask, unsigned long *addr)
 	raw_local_irq_save(flags);
 	*addr &= ~mask;
 	raw_local_irq_restore(flags);
+}
+
+static inline void atomic_push(atomic_t *v, int value, int width)
+{
+	unsigned long flags;
+
+	raw_local_irq_save(flags);
+	v->counter = (v->counter << width) | (value & ((1 << width) - 1));
+	raw_local_irq_restore(flags);
+}
+
+static inline int atomic_pop(atomic_t *v, int width)
+{
+	int result;
+	unsigned long flags;
+
+	raw_local_irq_save(flags);
+	result = v->counter;
+	v->counter >>= width;
+	raw_local_irq_restore(flags);
+
+	return result & ((1 << width) - 1);
 }
 
 #endif /* __LINUX_ARM_ARCH__ */
@@ -301,8 +366,8 @@ static inline void atomic64_add(u64 i, atomic64_t *v)
 
 	__asm__ __volatile__("@ atomic64_add\n"
 "1:	ldrexd	%0, %H0, [%3]\n"
-"	adds	%0, %0, %4\n"
-"	adc	%H0, %H0, %H4\n"
+"	adds	%Q0, %Q0, %Q4\n"
+"	adc	%R0, %R0, %R4\n"
 "	strexd	%1, %0, %H0, [%3]\n"
 "	teq	%1, #0\n"
 "	bne	1b"
@@ -320,8 +385,8 @@ static inline u64 atomic64_add_return(u64 i, atomic64_t *v)
 
 	__asm__ __volatile__("@ atomic64_add_return\n"
 "1:	ldrexd	%0, %H0, [%3]\n"
-"	adds	%0, %0, %4\n"
-"	adc	%H0, %H0, %H4\n"
+"	adds	%Q0, %Q0, %Q4\n"
+"	adc	%R0, %R0, %R4\n"
 "	strexd	%1, %0, %H0, [%3]\n"
 "	teq	%1, #0\n"
 "	bne	1b"
@@ -341,8 +406,8 @@ static inline void atomic64_sub(u64 i, atomic64_t *v)
 
 	__asm__ __volatile__("@ atomic64_sub\n"
 "1:	ldrexd	%0, %H0, [%3]\n"
-"	subs	%0, %0, %4\n"
-"	sbc	%H0, %H0, %H4\n"
+"	subs	%Q0, %Q0, %Q4\n"
+"	sbc	%R0, %R0, %R4\n"
 "	strexd	%1, %0, %H0, [%3]\n"
 "	teq	%1, #0\n"
 "	bne	1b"
@@ -360,8 +425,8 @@ static inline u64 atomic64_sub_return(u64 i, atomic64_t *v)
 
 	__asm__ __volatile__("@ atomic64_sub_return\n"
 "1:	ldrexd	%0, %H0, [%3]\n"
-"	subs	%0, %0, %4\n"
-"	sbc	%H0, %H0, %H4\n"
+"	subs	%Q0, %Q0, %Q4\n"
+"	sbc	%R0, %R0, %R4\n"
 "	strexd	%1, %0, %H0, [%3]\n"
 "	teq	%1, #0\n"
 "	bne	1b"
@@ -428,9 +493,9 @@ static inline u64 atomic64_dec_if_positive(atomic64_t *v)
 
 	__asm__ __volatile__("@ atomic64_dec_if_positive\n"
 "1:	ldrexd	%0, %H0, [%3]\n"
-"	subs	%0, %0, #1\n"
-"	sbc	%H0, %H0, #0\n"
-"	teq	%H0, #0\n"
+"	subs	%Q0, %Q0, #1\n"
+"	sbc	%R0, %R0, #0\n"
+"	teq	%R0, #0\n"
 "	bmi	2f\n"
 "	strexd	%1, %0, %H0, [%3]\n"
 "	teq	%1, #0\n"
@@ -459,8 +524,8 @@ static inline int atomic64_add_unless(atomic64_t *v, u64 a, u64 u)
 "	teqeq	%H0, %H5\n"
 "	moveq	%1, #0\n"
 "	beq	2f\n"
-"	adds	%0, %0, %6\n"
-"	adc	%H0, %H0, %H6\n"
+"	adds	%Q0, %Q0, %Q6\n"
+"	adc	%R0, %R0, %R6\n"
 "	strexd	%2, %0, %H0, [%4]\n"
 "	teq	%2, #0\n"
 "	bne	1b\n"

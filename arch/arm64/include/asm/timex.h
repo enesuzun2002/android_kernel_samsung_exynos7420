@@ -20,10 +20,10 @@
  * Use the current timer as a cycle counter since this is what we use for
  * the delay loop.
  */
-#define get_cycles()	({ cycles_t c; read_current_timer(&c); c; })
+extern u64 (*arch_timer_read_counter)(void);
+
+#define get_cycles()	arch_timer_read_counter()
 
 #include <asm-generic/timex.h>
-
-#define ARCH_HAS_READ_CURRENT_TIMER
 
 #endif

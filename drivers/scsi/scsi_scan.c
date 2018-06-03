@@ -289,6 +289,13 @@ static struct scsi_device *scsi_alloc_sdev(struct scsi_target *starget,
 	sdev->request_queue->queuedata = sdev;
 	scsi_adjust_queue_depth(sdev, 0, sdev->host->cmd_per_lun);
 
+#ifdef CONFIG_JOURNAL_DATA_TAG
+	if (shost->journal_tag == JOURNAL_TAG_ON)
+		queue_flag_set(QUEUE_FLAG_JOURNAL_TAG, sdev->request_queue);
+	else
+		queue_flag_clear(QUEUE_FLAG_JOURNAL_TAG, sdev->request_queue);
+#endif
+
 	scsi_sysfs_device_initialize(sdev);
 
 	if (shost->hostt->slave_alloc) {
@@ -804,6 +811,18 @@ static int scsi_add_lun(struct scsi_device *sdev, unsigned char *inq_result,
 	} else {
 		sdev->type = (inq_result[0] & 0x1f);
 		sdev->removable = (inq_result[1] & 0x80) >> 7;
+
+		/*
+		 * some devices may respond with wrong type for
+		 * well-known logical units. Force well-known type
+		 * to enumerate them correctly.
+		 */
+		if (scsi_is_wlun(sdev->lun) && sdev->type != TYPE_WLUN) {
+			sdev_printk(KERN_WARNING, sdev,
+				"%s: correcting incorrect peripheral device type 0x%x for W-LUN 0x%16xhN\n",
+				__func__, sdev->type, (unsigned int)sdev->lun);
+			sdev->type = TYPE_WLUN;
+		}
 	}
 
 	switch (sdev->type) {
@@ -1747,6 +1766,9 @@ static void scsi_sysfs_add_devices(struct Scsi_Host *shost)
 	shost_for_each_device(sdev, shost) {
 		/* target removed before the device could be added */
 		if (sdev->sdev_state == SDEV_DEL)
+			continue;
+		/* If device is already visible, skip adding it to sysfs */
+		if (sdev->is_visible)
 			continue;
 		if (!scsi_host_scan_allowed(shost) ||
 		    scsi_sysfs_add_sdev(sdev) != 0)

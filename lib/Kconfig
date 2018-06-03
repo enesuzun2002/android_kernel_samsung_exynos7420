@@ -174,6 +174,10 @@ config AUDIT_GENERIC
 	depends on AUDIT && !AUDIT_ARCH
 	default y
 
+config SEC_DEBUG_MDM_SWIOTLB
+	bool	"debug swiotlb"
+	default n
+
 #
 # compression support is select'ed if needed
 #
@@ -224,7 +228,7 @@ config GENERIC_ALLOCATOR
 #
 config REED_SOLOMON
 	tristate
-	
+
 config REED_SOLOMON_ENC8
 	boolean
 
@@ -406,5 +410,14 @@ config OID_REGISTRY
 
 config UCS2_STRING
         tristate
+
+config QMI_ENCDEC
+	bool "QMI Encode/Decode Library"
+	help
+	  Library to encode & decode QMI messages from within
+	  the kernel. The kernel drivers encode the C structure into
+	  QMI message wire format and then send it over a transport.
+	  The kernel drivers receive the QMI message over a transport
+	  and then decode it into a C structure.
 
 endmenu

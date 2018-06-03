@@ -51,6 +51,14 @@ static inline int rt6_srcprefs2flags(unsigned int srcprefs)
 	return srcprefs << 3;
 }
 
+#ifdef CONFIG_MPTCP
+static inline bool rt6_need_strict(const struct in6_addr *daddr)
+{
+	return ipv6_addr_type(daddr) &
+		(IPV6_ADDR_MULTICAST | IPV6_ADDR_LINKLOCAL | IPV6_ADDR_LOOPBACK);
+}
+#endif
+
 static inline unsigned int rt6_flags2srcprefs(int flags)
 {
 	return (flags >> 3) & 7;
@@ -136,7 +144,7 @@ extern int			rt6_route_rcv(struct net_device *dev,
 					      const struct in6_addr *gwaddr);
 
 extern void ip6_update_pmtu(struct sk_buff *skb, struct net *net, __be32 mtu,
-			    int oif, u32 mark);
+			    int oif, u32 mark, kuid_t uid);
 extern void ip6_sk_update_pmtu(struct sk_buff *skb, struct sock *sk,
 			       __be32 mtu);
 extern void ip6_redirect(struct sk_buff *skb, struct net *net, int oif, u32 mark);
