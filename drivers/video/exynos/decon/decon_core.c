@@ -2093,16 +2093,12 @@ static inline u32 get_vpp_src_format_opaque(int id, u32 format)
 {
 	switch (format) {
 	case DECON_PIXEL_FORMAT_BGRA_8888:
-		decon_info("vpp(%d), format(0x%x)\n", id, format);
 		return DECON_PIXEL_FORMAT_BGRX_8888;
 	case DECON_PIXEL_FORMAT_RGBA_8888:
-		decon_info("vpp(%d), format(0x%x)\n", id, format);
 		return DECON_PIXEL_FORMAT_RGBX_8888;
 	case DECON_PIXEL_FORMAT_ABGR_8888:
-		decon_info("vpp(%d), format(0x%x)\n", id, format);
 		return DECON_PIXEL_FORMAT_XBGR_8888;
 	case DECON_PIXEL_FORMAT_ARGB_8888:
-		decon_info("vpp(%d), format(0x%x)\n", id, format);
 		return DECON_PIXEL_FORMAT_XRGB_8888;
 	default:
 		return format;
