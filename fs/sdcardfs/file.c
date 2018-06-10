@@ -62,7 +62,7 @@ static ssize_t sdcardfs_write(struct file *file, const char __user *buf,
 	int err = 0;
 	struct file *lower_file;
 	struct dentry *dentry = file->f_path.dentry;
-	struct inode *inode = d_inode(dentry);
+	struct inode *inode = dentry->d_inode;
 
 	/* check disk space */
 	if (!check_min_free_space(dentry, count, 0)) {
