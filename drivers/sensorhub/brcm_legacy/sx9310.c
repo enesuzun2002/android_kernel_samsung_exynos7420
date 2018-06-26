@@ -1209,7 +1209,7 @@ static irqreturn_t sx9310_reinit_int_th(int irq, void *pdata)
 	if (sx9310_get_nirqldo_state(data) == 1) {
 		pr_info("[SX9310]: %s - happen irq ldo en\n",
 			__func__);
-		wake_lock_timeout(&data->grip_wake_lock, 3 * HZ);
+		wake_lock_timeout(&data->grip_wake_lock, msecs_to_jiffies(3000));
 		schedule_delayed_work(&data->reinit_irq_work, msecs_to_jiffies(10));
 	} else {
 		pr_err("[SX9310]: %s - nirq ldo read low\n", __func__);
@@ -1272,7 +1272,7 @@ static irqreturn_t sx9310_interrupt_thread(int irq, void *pdata)
 	if (sx9310_get_nirq_state(data) == 1) {
 		pr_err("[SX9310]: %s - nirq read high\n", __func__);
 	} else {
-		wake_lock_timeout(&data->grip_wake_lock, 3 * HZ);
+		wake_lock_timeout(&data->grip_wake_lock, msecs_to_jiffies(3000));
 		schedule_delayed_work(&data->irq_work, msecs_to_jiffies(100));
 	}
 

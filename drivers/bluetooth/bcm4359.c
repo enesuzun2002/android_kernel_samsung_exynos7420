@@ -156,7 +156,7 @@ static enum hrtimer_restart enter_lpm(struct hrtimer *timer)
 
 	bt_is_running = 0;
 
-	wake_lock_timeout(&bt_lpm.bt_wake_lock, HZ/2);
+	wake_lock_timeout(&bt_lpm.bt_wake_lock, msecs_to_jiffies(500));
 
 	return HRTIMER_NORESTART;
 }
@@ -191,7 +191,7 @@ static void update_host_wake_locked(int host_wake)
 		 * more data to send.
 		 */
 		pr_info("[BT] update_host_wake_locked host_wake is deasserted. release wakelock in 1s\n");
-		wake_lock_timeout(&bt_lpm.host_wake_lock, HZ);
+		wake_lock_timeout(&bt_lpm.host_wake_lock, msecs_to_jiffies(1000));
 	}
 }
 

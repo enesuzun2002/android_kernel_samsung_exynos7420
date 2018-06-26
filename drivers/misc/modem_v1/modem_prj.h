@@ -111,7 +111,7 @@ Definitions for IO devices
 @addtogroup group_mem_cp_crash
 @{
 */
-#define FORCE_CRASH_ACK_TIMEOUT		(10 * HZ)
+#define FORCE_CRASH_ACK_TIMEOUT		(msecs_to_jiffies(10000))
 
 /* Loopback */
 #define CP2AP_LOOPBACK_CHANNEL	30

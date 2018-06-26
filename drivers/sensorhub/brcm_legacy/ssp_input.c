@@ -324,7 +324,7 @@ void report_sig_motion_data(struct ssp_data *data,
 		data->buf[SIG_MOTION_SENSOR].sig_motion);
 	input_sync(data->sig_motion_input_dev);
 
-	wake_lock_timeout(&data->ssp_wake_lock, 3 * HZ);
+	wake_lock_timeout(&data->ssp_wake_lock, msecs_to_jiffies(3000));
 }
 
 void report_rot_data(struct ssp_data *data, struct sensor_value *rotdata)
@@ -520,7 +520,7 @@ void report_prox_data(struct ssp_data *data, struct sensor_value *proxdata)
 		((!proxdata->prox[0]))+1);
 	input_sync(data->prox_input_dev);
 
-	wake_lock_timeout(&data->ssp_wake_lock, 3 * HZ);
+	wake_lock_timeout(&data->ssp_wake_lock, msecs_to_jiffies(3000));
 }
 
 void report_prox_raw_data(struct ssp_data *data,
@@ -579,7 +579,7 @@ void report_grip_data(struct ssp_data *data, struct sensor_value *gripdata)
 			data->buf[GRIP_SENSOR].irq_stat + 1);
 	input_sync(data->grip_input_dev);
 
-	wake_lock_timeout(&data->ssp_wake_lock, 3 * HZ);
+	wake_lock_timeout(&data->ssp_wake_lock, msecs_to_jiffies(3000));
 }
 #endif
 
@@ -618,7 +618,7 @@ void report_temp_humidity_data(struct ssp_data *data,
 		data->buf[TEMPERATURE_HUMIDITY_SENSOR].y);
 	input_sync(data->temp_humi_input_dev);
 	if (data->buf[TEMPERATURE_HUMIDITY_SENSOR].z)
-		wake_lock_timeout(&data->ssp_wake_lock, 2 * HZ);
+		wake_lock_timeout(&data->ssp_wake_lock, msecs_to_jiffies(2000));
 }
 
 #ifdef CONFIG_SENSORS_SSP_SHTC1
@@ -636,7 +636,7 @@ void report_tilt_data(struct ssp_data *data,
 	data->buf[TILT_DETECTOR].tilt_detector = tilt_data->tilt_detector;
 	ssp_push_1bytes_buffer(data->tilt_indio_dev, tilt_data->timestamp,
 			&tilt_data->tilt_detector);
-	wake_lock_timeout(&data->ssp_wake_lock, 3 * HZ);
+	wake_lock_timeout(&data->ssp_wake_lock, msecs_to_jiffies(3000));
 	ssp_dbg("[SSP]: %s: %d", __func__,  tilt_data->tilt_detector);
 }
 
@@ -646,7 +646,7 @@ void report_pickup_data(struct ssp_data *data,
 	data->buf[PICKUP_GESTURE].pickup_gesture = pickup_data->pickup_gesture;
 	ssp_push_1bytes_buffer(data->pickup_indio_dev, pickup_data->timestamp,
 			&pickup_data->pickup_gesture);
-	wake_lock_timeout(&data->ssp_wake_lock, 3 * HZ);
+	wake_lock_timeout(&data->ssp_wake_lock, msecs_to_jiffies(3000));
 	ssp_dbg("[SSP]: %s: %d", __func__,  pickup_data->pickup_gesture);
 }
 

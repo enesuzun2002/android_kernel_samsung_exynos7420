@@ -1699,7 +1699,7 @@ static void vnet_setup(struct net_device *ndev)
 	ndev->hard_header_len = 0;
 	ndev->tx_queue_len = 1000;
 	ndev->mtu = ETH_DATA_LEN;
-	ndev->watchdog_timeo = 5 * HZ;
+	ndev->watchdog_timeo = msecs_to_jiffies(5000);
 }
 
 static void vnet_setup_ether(struct net_device *ndev)
@@ -1712,7 +1712,7 @@ static void vnet_setup_ether(struct net_device *ndev)
 	ndev->hard_header_len = 0;
 	ndev->tx_queue_len = 1000;
 	ndev->mtu = ETH_DATA_LEN;
-	ndev->watchdog_timeo = 5 * HZ;
+	ndev->watchdog_timeo = msecs_to_jiffies(5000);
 }
 
 /**

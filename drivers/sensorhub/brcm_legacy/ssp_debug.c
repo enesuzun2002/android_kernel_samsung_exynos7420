@@ -18,7 +18,7 @@
 
 
 
-#define SSP_DEBUG_TIMER_SEC		(10 * HZ)
+#define SSP_DEBUG_TIMER_SEC		(msecs_to_jiffies(10000))
 
 #define LIMIT_RESET_CNT			40
 #define LIMIT_TIMEOUT_CNT		3
