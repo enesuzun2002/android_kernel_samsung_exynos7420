@@ -27,7 +27,7 @@
 
 #include <linux/of_gpio.h>
 
-#define MIF_INIT_TIMEOUT	(30 * HZ)
+#define MIF_INIT_TIMEOUT	(msecs_to_jiffies(30000))
 
 enum crash_reason_event
 {
@@ -177,7 +177,7 @@ static inline void wait_for_link_unmount(struct modem_ctl *mc,
 	mc->unmount_nb.notifier_call = unmount_noti_cb;
 	pm_register_unmount_notifier(&ld->pm, &mc->unmount_nb);
 
-	result = wait_for_completion_interruptible_timeout(&mc->off_cmpl, 5*HZ);
+	result = wait_for_completion_interruptible_timeout(&mc->off_cmpl, msecs_to_jiffies(5000));
 	if (result <= 0) {
 		if (result < 0)
 			mif_err("%s: %s link unmount ... INTERRUPTED\n",

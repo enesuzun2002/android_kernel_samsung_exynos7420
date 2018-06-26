@@ -1149,7 +1149,7 @@ static void max77833_charger_function_control(
 			charger->charging_current_max = INPUT_CURRENT_TA;
 			cancel_delayed_work(&charger->afc_work);
 			queue_delayed_work(charger->wqueue, &charger->afc_work, msecs_to_jiffies(2000));
-			wake_lock_timeout(&charger->afc_wake_lock, HZ * 3);
+			wake_lock_timeout(&charger->afc_wake_lock, msecs_to_jiffies(3000));
 		} else if (charger->vbus_changing == 5 && charger->cable_type == POWER_SUPPLY_TYPE_HV_MAINS_CHG_LIMIT) {
 			charger->vbus_changing = 0;
 		} else if (charger->vbus_changing == 9 && is_hv_wire_type(charger->cable_type)) {
@@ -1177,7 +1177,7 @@ static void max77833_charger_function_control(
 			charger->charging_current_max = INPUT_CURRENT_WPC;
 			cancel_delayed_work(&charger->wc_afc_work);
 			queue_delayed_work(charger->wqueue, &charger->wc_afc_work, msecs_to_jiffies(4000));
-			wake_lock_timeout(&charger->afc_wake_lock, HZ * 7);
+			wake_lock_timeout(&charger->afc_wake_lock, msecs_to_jiffies(7000));
 		}
 
 		/* prepare calculate current cable's input current(chgin) */
@@ -1786,7 +1786,7 @@ static int max77833_chg_set_property(struct power_supply *psy,
 			charger->charging_current_max = INPUT_CURRENT_TA;
 			cancel_delayed_work(&charger->afc_work);
 			queue_delayed_work(charger->wqueue, &charger->afc_work, msecs_to_jiffies(2000));
-			wake_lock_timeout(&charger->afc_wake_lock, HZ * 3);
+			wake_lock_timeout(&charger->afc_wake_lock, msecs_to_jiffies(3000));
 		}
 		break;
 	default:
