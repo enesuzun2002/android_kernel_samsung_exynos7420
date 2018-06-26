@@ -48,8 +48,8 @@
 #include "modem_variation.h"
 #include "modem_utils.h"
 
-#define FMT_WAKE_TIME   (HZ/2)
-#define RAW_WAKE_TIME   (HZ*6)
+#define FMT_WAKE_TIME   (msecs_to_jiffies(500))
+#define RAW_WAKE_TIME   (msecs_to_jiffies(6000))
 
 extern unsigned int lpcharge;
 

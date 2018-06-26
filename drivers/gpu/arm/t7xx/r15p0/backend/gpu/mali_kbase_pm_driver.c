@@ -886,7 +886,7 @@ KBASE_EXPORT_TEST_API(kbase_pm_check_transitions_nolock);
 /* Timeout for kbase_pm_check_transitions_sync when wait_event_killable has
  * aborted due to a fatal signal. If the time spent waiting has exceeded this
  * threshold then there is most likely a hardware issue. */
-#define PM_TIMEOUT (5*HZ) /* 5s */
+#define PM_TIMEOUT (msecs_to_jiffies(5000)) /* 5s */
 
 void kbase_pm_check_transitions_sync(struct kbase_device *kbdev)
 {

@@ -31,7 +31,7 @@ static int do_transfer(struct ssp_data *data, struct ssp_msg *msg,
 		struct completion *done, int timeout)
 {
 	if(timeout)
-		wake_lock_timeout(&data->ssp_wake_lock, ((timeout/1000)+1)*HZ);
+		wake_lock_timeout(&data->ssp_wake_lock, msecs_to_jiffies(timeout + 1000));
 
 	return bbd_do_transfer(data, msg, done, timeout);
 }

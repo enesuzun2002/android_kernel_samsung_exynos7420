@@ -513,7 +513,7 @@ static void sdchg_exynos7420_ap_use_monitor(void *arg,
 	if (info->set_state == SDCHG_STATE_NONE)
 	{
 		if (info->wake_lock_set) {
-			wake_lock_timeout(&info->end_wake_lock, HZ * 5);
+			wake_lock_timeout(&info->end_wake_lock, msecs_to_jiffies(5000));
 			wake_unlock(&info->wake_lock);
 			info->wake_lock_set = false;
 		}

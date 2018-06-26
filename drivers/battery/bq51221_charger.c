@@ -433,7 +433,7 @@ static int bq51221_chg_set_property(struct power_supply *psy,
 				charger->pdata->pad_mode = BQ51221_PAD_MODE_WPC;
 				queue_delayed_work(charger->wqueue, &charger->wpc_work,
 					msecs_to_jiffies(5000));
-				wake_lock_timeout(&charger->wpc_wake_lock, HZ * 6);
+				wake_lock_timeout(&charger->wpc_wake_lock, msecs_to_jiffies(6000));
 			} else if(val->intval == POWER_SUPPLY_TYPE_BATTERY) {
 				bq51221_set_voreg(charger->client, 1);
 				charger->pdata->pad_mode = BQ51221_PAD_MODE_NONE;
@@ -456,7 +456,7 @@ static int bq51221_chg_set_property(struct power_supply *psy,
 					(charger->pdata->pad_mode == BQ51221_PAD_MODE_WPC)) {
 					queue_delayed_work(charger->wqueue, &charger->wpc_work,
 						msecs_to_jiffies(5000));
-					wake_lock_timeout(&charger->wpc_wake_lock, HZ * 6);
+					wake_lock_timeout(&charger->wpc_wake_lock, msecs_to_jiffies(6000));
 				}
 			}
 			break;
