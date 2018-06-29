@@ -60,7 +60,7 @@ bool kwakeblock_is_blocked(const char *name) {
 		return false;
 
 	// check if wakeblock is enabled
-	if (unlikely(!kwakeblock_enabled))
+	if (!kwakeblock_enabled)
 		return false;
 
 	// go throught the list of blocked wakelocks
