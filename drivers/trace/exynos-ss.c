@@ -30,10 +30,8 @@
 #include <linux/platform_device.h>
 #include <linux/pstore_ram.h>
 #include <linux/clk-private.h>
-#ifdef CONFIG_SEC_PM_DEBUG
 #include <linux/uaccess.h>
 #include <linux/proc_fs.h>
-#endif
 
 #include <asm/mach/map.h>
 #include <asm/cacheflush.h>
@@ -2417,58 +2415,59 @@ static int __init exynos_ss_sysfs_init(void)
 }
 late_initcall(exynos_ss_sysfs_init);
 
-#ifdef CONFIG_SEC_PM_DEBUG
-static ssize_t sec_log_read_all(struct file *file, char __user *buf,
-				size_t len, loff_t *offset)
-{
-	loff_t pos = *offset;
-	ssize_t count;
-	size_t size;
-	struct exynos_ss_item *item = &ess_items[ESS_ITEMS_LOG_KERNEL];
+#define SEC_LOG_DEFINE(_type, _ess)                                                                   \
+	static ssize_t sec_log_##_type##_read_all(struct file *file, char __user *buf,                    \
+					size_t len, loff_t *offset)                                                       \
+	{                                                                                                 \
+		loff_t pos = *offset;                                                                         \
+		ssize_t count;                                                                                \
+		size_t size;                                                                                  \
+		struct exynos_ss_item *item = &ess_items[_ess];                                               \
+                                                                                                      \
+		size = item->entry.size;                                                                      \
+                                                                                                      \
+		if (pos >= size)                                                                              \
+			return 0;                                                                                 \
+                                                                                                      \
+		count = min(len, size);                                                                       \
+                                                                                                      \
+		if ((pos + count) > size)                                                                     \
+			count = size - pos;                                                                       \
+                                                                                                      \
+		if (copy_to_user(buf, item->head_ptr + pos, count))                                           \
+			return -EFAULT;                                                                           \
+                                                                                                      \
+		*offset += count;                                                                             \
+		return count;                                                                                 \
+	}                                                                                                 \
+                                                                                                      \
+	static const struct file_operations sec_log_##_type##_file_ops = {                                \
+		.owner = THIS_MODULE,                                                                         \
+		.read = sec_log_##_type##_read_all,                                                           \
+	};                                                                                                \
+                                                                                                      \
+	static int __init sec_log_##_type##_late_init(void)                                               \
+	{                                                                                                 \
+		struct proc_dir_entry *entry;                                                                 \
+		struct exynos_ss_item *item = &ess_items[_ess];                                               \
+                                                                                                      \
+		if (!item->head_ptr)                                                                          \
+			return 0;                                                                                 \
+                                                                                                      \
+		entry = proc_create("sec_log_" #_type, S_IRUSR | S_IRGRP, NULL, &sec_log_##_type##_file_ops); \
+		if (!entry) {                                                                                 \
+			pr_err("%s: failed to create proc entry\n", __func__);                                    \
+			return 0;                                                                                 \
+		}                                                                                             \
+                                                                                                      \
+		proc_set_size(entry, item->entry.size);                                                       \
+                                                                                                      \
+		return 0;                                                                                     \
+	}                                                                                                 \
+	late_initcall(sec_log_##_type##_late_init);
 
-	if (sec_log_full)
-		size = item->entry.size;
-	else
-		size = (size_t)(item->curr_ptr - item->head_ptr);
-
-	if (pos >= size)
-		return 0;
-
-	count = min(len, size);
-
-	if ((pos + count) > size)
-		count = size - pos;
-
-	if (copy_to_user(buf, item->head_ptr + pos, count))
-		return -EFAULT;
-
-	*offset += count;
-	return count;
-}
-
-static const struct file_operations sec_log_file_ops = {
-	.owner = THIS_MODULE,
-	.read = sec_log_read_all,
-};
-
-static int __init sec_log_late_init(void)
-{
-	struct proc_dir_entry *entry;
-	struct exynos_ss_item *item = &ess_items[ESS_ITEMS_LOG_KERNEL];
-
-	if (!item->head_ptr)
-		return 0;
-
-	entry = proc_create("sec_log", S_IRUSR | S_IRGRP, NULL, &sec_log_file_ops);
-	if (!entry) {
-		pr_err("%s: failed to create proc entry\n", __func__);
-		return 0;
-	}
-
-	proc_set_size(entry, item->entry.size);
-
-	return 0;
-}
-
-late_initcall(sec_log_late_init);
-#endif
+SEC_LOG_DEFINE(kevents, ESS_ITEMS_KEVENTS);
+SEC_LOG_DEFINE(kernel, ESS_ITEMS_LOG_KERNEL);
+SEC_LOG_DEFINE(main, ESS_ITEMS_LOG_MAIN);
+SEC_LOG_DEFINE(radio, ESS_ITEMS_LOG_RADIO);
+SEC_LOG_DEFINE(etm, ESS_ITEMS_LOG_ETM);
