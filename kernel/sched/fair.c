@@ -1228,9 +1228,9 @@ struct hmp_global_attr {
 };
 
 #ifdef CONFIG_HMP_FREQUENCY_INVARIANT_SCALE
-#define HMP_DATA_SYSFS_MAX 18
+#define HMP_DATA_SYSFS_MAX 19
 #else
-#define HMP_DATA_SYSFS_MAX 17
+#define HMP_DATA_SYSFS_MAX 18
 #endif
 
 struct hmp_data_struct {
@@ -1598,6 +1598,16 @@ static unsigned int hmp_up_perf_threshold = 597;
 
 /* Capacity floor for checking cluster perf and efficiency. */
 static unsigned int hmp_up_power_threshold = 341;
+
+/*
+ * Nice-ness threshold after which HMP decides to migrate the task
+ * to the fast cluster.
+ *
+ * default: -10
+ */
+int hmp_nice_up_threshold = -10;
+
+#define hmp_task_below_nice_threshold(task) (task_nice(task) <= hmp_nice_up_threshold)
 
 /*
  * Maximum total capacity difference in load scale percentage to enact scheduler power migration.
@@ -4139,6 +4149,16 @@ static int hmp_up_power_threshold_from_sysfs(int value)
 	return 0;
 }
 
+static int hmp_nice_up_threshold_from_sysfs(int value)
+{
+	if ((value < MIN_NICE) || (value > MAX_NICE))
+		return -EINVAL;
+
+	hmp_nice_up_threshold = value;
+
+	return 0;
+}
+
 static int hmp_up_perf_hysteresis_from_sysfs(int value)
 {
 	hmp_up_perf_hysteresis = value;
@@ -4334,6 +4354,11 @@ int set_hmp_up_power_threshold(int value)
 	return hmp_up_power_threshold_from_sysfs(value);
 }
 
+int set_hmp_nice_up_threshold(int value)
+{
+	return hmp_nice_up_threshold_from_sysfs(value);
+}
+
 int set_hmp_up_perf_hysteresis(int value)
 {
 	return hmp_up_perf_hysteresis_from_sysfs(value);
@@ -4409,6 +4434,10 @@ static int hmp_attr_init(void)
 		&hmp_down_threshold,
 		NULL,
 		hmp_down_threshold_from_sysfs);
+	hmp_attr_add("nice_up_threshold",
+		&hmp_nice_up_threshold,
+		NULL,
+		hmp_nice_up_threshold_from_sysfs);
 	
 	hmp_attr_add("up_perf_hysteresis",
 		&hmp_up_perf_hysteresis,
@@ -7089,11 +7118,15 @@ static unsigned int hmp_up_migration(int cpu, int *target_cpu, struct sched_enti
 	if (hmp_cpu_is_fastest(cpu))
 		return 0;
 
+	if (hmp_task_below_nice_threshold(p))
+		goto migrate_up;
+
 #ifdef CONFIG_SCHED_HMP_PRIO_FILTER
 	/* Filter by task priority */
 	if (p->prio >= hmp_up_prio)
 		return 0;
 #endif
+
 	if (!hmp_boost()) {
 		if (hmp_semiboost())
 			up_threshold = hmp_semiboost_up_threshold;
@@ -7118,6 +7151,7 @@ static unsigned int hmp_up_migration(int cpu, int *target_cpu, struct sched_enti
 					< hmp_next_up_threshold)
 		return 0;
 
+migrate_up:
 	/* hmp_domain_min_load only returns 0 for an
 	 * idle CPU.
 	 * Be explicit about requirement for an idle CPU.
@@ -7149,6 +7183,9 @@ static unsigned int hmp_down_migration(int cpu, struct sched_entity *se)
 	u64 now;
 
 	if (hmp_cpu_is_slowest(cpu))
+		return 0;
+
+	if (hmp_task_below_nice_threshold(p))
 		return 0;
 
 #ifdef CONFIG_SCHED_HMP_PRIO_FILTER
