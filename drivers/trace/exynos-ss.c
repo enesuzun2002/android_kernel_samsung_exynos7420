@@ -1344,17 +1344,6 @@ static int __init exynos_ss_init(void)
 				memcpy(last_item->addr, item->head_ptr, last_item->size);
 		}
 
-		/*
-		 * Clear all old logs aften copying
-		 */
-		for (i = 1; i < ARRAY_SIZE(ess_items); i++) {
-			/* initialize log to 0 */
-			memset((size_t *)ess_items[i].entry.vaddr, 0, ess_items[i].entry.size);
-
-			/* reset current position pointer */
-			ess_items[i - 1].curr_ptr = (unsigned char *)ess_items[i].entry.vaddr;
-		}
-
 		register_hook_logbuf(exynos_ss_hook_logbuf);
 
 #ifdef CONFIG_EXYNOS_SNAPSHOT_HOOK_LOGGER
