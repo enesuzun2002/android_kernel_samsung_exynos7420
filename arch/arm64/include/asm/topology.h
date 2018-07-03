@@ -69,6 +69,8 @@ static inline void store_cpu_topology(unsigned int cpuid) { }
 
 #endif
 
+void arch_get_fast_and_slow_cpus(struct cpumask *fast, struct cpumask *slow);
+
 #include <asm-generic/topology.h>
 
 #endif /* _ASM_ARM_TOPOLOGY_H */

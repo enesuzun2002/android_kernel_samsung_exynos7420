@@ -7777,6 +7777,10 @@ int in_sched_functions(unsigned long addr)
 struct task_group root_task_group;
 LIST_HEAD(task_groups);
 #endif
+ 
+#ifndef CONFIG_SCHED_HMP
+extern void __init arch_get_hmp_domains_for_smp(void);
+#endif
 
 DECLARE_PER_CPU(cpumask_var_t, load_balance_mask);
 
@@ -7957,6 +7961,10 @@ void __init sched_init(void)
 	set_cpu_rq_start_time();
 #endif
 	init_sched_fair_class();
+
+#ifndef CONFIG_SCHED_HMP
+	arch_get_hmp_domains_for_smp();
+#endif /* CONFIG_SCHED_HMP */
 
 	scheduler_running = 1;
 }

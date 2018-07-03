@@ -31,6 +31,8 @@
 
 #include <mach/cpufreq.h>
 
+#include <asm/topology.h>
+
 #include "platform_tables.h"
 #include "../cpufreq/cpu_load_metric.h"
 
@@ -175,13 +177,7 @@ static void setup_cpusmasks(struct cluster_stats *cl_stats)
 	if (!zalloc_cpumask_var(&cl_stats[CL_ZERO].mask, GFP_KERNEL))
 		pr_warn("unable to allocate cpumask");
 
-	cpumask_setall(cl_stats[CL_ONE].mask);
-	if (strlen(CONFIG_HMP_FAST_CPU_MASK))
-		cpulist_parse(CONFIG_HMP_FAST_CPU_MASK, cl_stats[CL_ONE].mask);
-	else
-		pr_warn("IPA: No CONFIG_HMP_FAST_CPU_MASK found.\n");
-
-	cpumask_andnot(cl_stats[CL_ZERO].mask, cpu_present_mask, cl_stats[CL_ONE].mask);
+	arch_get_fast_and_slow_cpus(cl_stats[CL_ONE].mask, cl_stats[CL_ZERO].mask);
 }
 
 #define FRAC_BITS 8

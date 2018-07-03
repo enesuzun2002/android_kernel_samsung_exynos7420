@@ -308,6 +308,20 @@ config DISABLE_CPU_SCHED_DOMAIN_BALANCE
 	help
 	  Disables scheduler load-balancing at CPU sched domain level.
 
+config HMP_FAST_CPU_MASK
+	string "Scheduler fast CPU mask"
+	help
+	  Leave empty to use device tree information.
+	  Specify the cpuids of the fast CPUs in the system as a list string,
+	  e.g. cpuid 0+1 should be specified as 0-1.
+
+config HMP_SLOW_CPU_MASK
+	string "Scheduler slow CPU mask"
+	help
+	  Leave empty to use device tree information.
+	  Specify the cpuids of the slow CPUs in the system as a list string,
+	  e.g. cpuid 0+1 should be specified as 0-1.
+
 config SCHED_HMP
 	bool "(EXPERIMENTAL) Heterogenous multiprocessor scheduling"
 	depends on DISABLE_CPU_SCHED_DOMAIN_BALANCE && SCHED_MC && FAIR_GROUP_SCHED && !SCHED_AUTOGROUP
@@ -332,22 +346,6 @@ config SCHED_HMP_PRIO_FILTER_VAL
 	int "NICE priority threshold"
 	default 5
 	depends on SCHED_HMP_PRIO_FILTER
-
-config HMP_FAST_CPU_MASK
-	string "HMP scheduler fast CPU mask"
-	depends on SCHED_HMP
-	help
-          Leave empty to use device tree information.
-	  Specify the cpuids of the fast CPUs in the system as a list string,
-	  e.g. cpuid 0+1 should be specified as 0-1.
-
-config HMP_SLOW_CPU_MASK
-	string "HMP scheduler slow CPU mask"
-	depends on SCHED_HMP
-	help
-	  Leave empty to use device tree information.
-	  Specify the cpuids of the slow CPUs in the system as a list string,
-	  e.g. cpuid 0+1 should be specified as 0-1.
 
 config HMP_VARIABLE_SCALE
 	bool "Allows changing the load tracking scale through sysfs"

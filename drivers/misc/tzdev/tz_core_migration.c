@@ -19,6 +19,8 @@
 #include <linux/pm_qos.h>
 #include <linux/sched.h>
 
+#include <asm/topology.h>
+
 enum Cluster {
 	CLUSTER_LITTLE = 0,
 	CLUSTER_BIG,
@@ -170,15 +172,7 @@ static int tzdev_cpu_callback(struct notifier_block *nfb,
 
 void tzdev_init_migration(void)
 {
-	cpumask_setall(&tzdev_cpu_mask[CLUSTER_BIG]);
-	cpumask_clear(&tzdev_cpu_mask[CLUSTER_LITTLE]);
-
-	if (strlen(CONFIG_HMP_FAST_CPU_MASK))
-		cpulist_parse(CONFIG_HMP_FAST_CPU_MASK, &tzdev_cpu_mask[CLUSTER_BIG]);
-	else
-		pr_notice("All CPUs are equal, core migration will do nothing.\n");
-	cpumask_andnot(&tzdev_cpu_mask[CLUSTER_LITTLE], cpu_present_mask,
-			&tzdev_cpu_mask[CLUSTER_BIG]);
+	arch_get_fast_and_slow_cpus(&tzdev_cpu_mask[CLUSTER_BIG], &tzdev_cpu_mask[CLUSTER_LITTLE]);
 	register_cpu_notifier(&tzdev_cpu_notifier);
 }
 

@@ -438,8 +438,6 @@ static void update_siblings_masks(unsigned int cpuid)
 	}
 }
 
-#ifdef CONFIG_SCHED_HMP
-
 /*
  * Retrieve logical cpu index corresponding to a given MPIDR[23:0]
  *  - mpidr: MPIDR[23:0] to be used for the look-up
@@ -532,6 +530,7 @@ void __init arch_get_fast_and_slow_cpus(struct cpumask *fast,
 struct cpumask hmp_slow_cpu_mask;
 struct cpumask hmp_fast_cpu_mask;
 
+#ifdef CONFIG_SCHED_HMP
 void __init arch_get_hmp_domains(struct list_head *hmp_domains_list)
 {
 	struct hmp_domain *domain;
@@ -555,6 +554,16 @@ void __init arch_get_hmp_domains(struct list_head *hmp_domains_list)
 	cpumask_copy(&domain->possible_cpus, &hmp_fast_cpu_mask);
 	cpumask_and(&domain->cpus, cpu_online_mask, &domain->possible_cpus);
 	list_add(&domain->hmp_domains, hmp_domains_list);
+}
+#else /* !CONFIG_SCHED_HMP */
+void __init arch_get_hmp_domains_for_smp(void)
+{
+	/*
+	 * As the kernel is built around the HMP-scheduler, we can't just deactivate
+	 * it and hope it runs. This function initializes the HMP-cpumasks which are
+	 * required by many drives without creating unrequired HMP-domains
+	 */
+	arch_get_fast_and_slow_cpus(&hmp_fast_cpu_mask, &hmp_slow_cpu_mask);
 }
 #endif /* CONFIG_SCHED_HMP */
 
