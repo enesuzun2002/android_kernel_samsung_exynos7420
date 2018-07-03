@@ -24,7 +24,7 @@
 
 #include "of_idle_states.h"
 
-enum idle_state {
+enum exynos_idle_state {
 	IDLE_C1 = 0,
 	IDLE_C2,
 	IDLE_CPD,
