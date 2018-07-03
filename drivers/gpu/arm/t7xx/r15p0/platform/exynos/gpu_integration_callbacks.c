@@ -151,8 +151,10 @@ void gpu_destroy_context(void *ctx)
 
 	if (kctx->ctx_need_qos)
 	{
+#ifdef CONFIG_SCHED_HMP
 		int i, policy_count;
 		const struct kbase_pm_policy *const *policy_list;
+#endif
 		struct exynos_context *platform;
 		platform = (struct exynos_context *) kbdev->platform_context;
 #ifdef CONFIG_MALI_DVFS
@@ -260,8 +262,10 @@ int gpu_vendor_dispatch(struct kbase_context *kctx, void * const args, u32 args_
 #ifdef CONFIG_MALI_DVFS
 			struct kbase_uk_custom_command *kgp = (struct kbase_uk_custom_command *)args;
 #endif /* CONFIG_MALI_DVFS */
+#ifdef CONFIG_SCHED_HMP
 			int i, policy_count;
 			const struct kbase_pm_policy *const *policy_list;
+#endif
 			struct exynos_context *platform;
 			platform = (struct exynos_context *) kbdev->platform_context;
 			if (!kctx->ctx_need_qos) {
@@ -298,8 +302,10 @@ int gpu_vendor_dispatch(struct kbase_context *kctx, void * const args, u32 args_
 #ifdef CONFIG_MALI_DVFS
 			struct kbase_uk_custom_command *kgp = (struct kbase_uk_custom_command*)args;
 #endif /* CONFIG_MALI_DVFS */
+#ifdef CONFIG_SCHED_HMP
 			int i, policy_count;
 			const struct kbase_pm_policy *const *policy_list;
+#endif
 			struct exynos_context *platform;
 			platform = (struct exynos_context *) kbdev->platform_context;
 			if (kctx->ctx_need_qos) {
