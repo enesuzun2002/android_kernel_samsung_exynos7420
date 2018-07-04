@@ -984,6 +984,17 @@ extern int set_hmp_down_threshold(int value);
 extern int set_active_down_migration(int enable);
 extern int set_hmp_aggressive_up_migration(int enable);
 extern int set_hmp_aggressive_yield(int enable);
+#else
+static inline int set_hmp_boost(__always_unused int enable) { return 0; }
+static inline int set_hmp_semiboost(__always_unused int enable) { return 0; }
+static inline int set_hmp_boostpulse(__always_unused int duration) { return 0; }
+static inline int get_hmp_boost(void) { return 0; }
+static inline int get_hmp_semiboost(void) { return 0; }
+static inline int set_hmp_up_threshold(__always_unused int value) { return 0; }
+static inline int set_hmp_down_threshold(__always_unused int value) { return 0; }
+static inline int set_active_down_migration(__always_unused int enable) { return 0; }
+static inline int set_hmp_aggressive_up_migration(__always_unused int enable) { return 0; }
+static inline int set_hmp_aggressive_yield(__always_unused int enable) { return 0; }
 #endif /* CONFIG_SCHED_HMP */
 #else /* CONFIG_SMP */
 
