@@ -72,6 +72,9 @@ struct cpufreq_nexus_cpuinfo {
 	struct cpufreq_policy *policy;
 	struct cpufreq_frequency_table *freq_table;
 
+	// ktime when current boostpulse ends
+	u64 boostpulse_end;
+
 	/*
 	 * List of previously tracked system workloads
 	 *
@@ -199,12 +202,6 @@ struct cpufreq_nexus_tunables {
 	// simple boost to freq_max
 	#define DEFAULT_BOOST 0
 	int boost;
-
-	// time in usecs when current boostpulse ends
-	u64 boostpulse;
-
-	// ktime when current boostpulse ends
-	u64 boostpulse_end;
 
 	// time in usecs when current boostpulse ends
 	#define DEFAULT_BOOSTPULSE_DURATION 50000
@@ -358,7 +355,7 @@ static int cpufreq_nexus_timer(struct cpufreq_nexus_cpuinfo *cpuinfo, struct cpu
 			WARN_ON(load < 0 || load > 100);
 		}
 
-		if (tunables->boost || ktime_now < tunables->boostpulse_end) {
+		if (tunables->boost || ktime_now < cpuinfo->boostpulse_end) {
 			nexus_debug("%s: cpu%d: boost = %u\n", __func__, cpu, tunables->boost_freq);
 			freq = tunables->boost_freq;
 		} else {
@@ -687,14 +684,21 @@ static ssize_t store_hispeed_freq(struct cpufreq_nexus_tunables *tunables, const
 	return count;
 }
 
+static ssize_t show_boostpulse(struct cpufreq_nexus_tunables *tunables, char *buf)
+{
+	struct cpufreq_nexus_cpuinfo *cpuinfo = tunables->cpuinfo;
+	return sprintf(buf, "%d\n", (ktime_to_us(ktime_get()) < cpuinfo->boostpulse_end) ? 1 : 0);
+}
+
 static ssize_t store_boostpulse(struct cpufreq_nexus_tunables *tunables, const char *buf, size_t count)
 {
+	struct cpufreq_nexus_cpuinfo *cpuinfo = tunables->cpuinfo;
 	unsigned long val = 0;
 	int ret = kstrtoul(buf, 0, &val);
 	if (ret < 0)
 		return ret;
 
-	tunables->boostpulse_end = ktime_to_us(ktime_get()) + tunables->boostpulse_duration;
+	cpuinfo->boostpulse_end = ktime_to_us(ktime_get()) + tunables->boostpulse_duration;
 	return count;
 }
 
@@ -777,7 +781,7 @@ gov_sys_pol_show_store(freq_min);
 gov_sys_pol_show_store(freq_max);
 gov_sys_pol_show_store(boost_freq);
 gov_sys_pol_show_store(boost);
-gov_sys_pol_store(boostpulse);
+gov_sys_pol_show_store(boostpulse);
 gov_sys_pol_show_store(boostpulse_duration);
 gov_sys_pol_show_store(power_efficient);
 gov_sys_pol_show_store(frequency_step);
@@ -913,7 +917,6 @@ static int cpufreq_governor_nexus(struct cpufreq_policy *policy, unsigned int ev
 			tunables->freq_max = policy->max;
 			tunables->boost_freq = policy->max;
 			tunables->boost = DEFAULT_BOOST;
-			tunables->boostpulse = 0;
 			tunables->boostpulse_duration = DEFAULT_BOOSTPULSE_DURATION;
 			tunables->power_efficient = DEFAULT_POWER_EFFICIENT;
 			tunables->frequency_step = DEFAULT_FREQUENCY_STEP;
