@@ -274,19 +274,21 @@ static void lsh_insert_load(struct cpufreq_nexus_cpuinfo *cpuinfo, int load) {
 	cpuinfo->load_stabilization_history[0] = load;
 }
 
-static int lsh_read_scaled_load(struct cpufreq_nexus_cpuinfo *cpuinfo) {
-	int i, total_load;
+static u64 lsh_read_scaled_load(struct cpufreq_nexus_cpuinfo *cpuinfo) {
+	int i;
+	u64 total_load;
 
 	// add up all tracked workloads
 	total_load = 0;
 	for (i = 0; i < LOAD_STABILIZATION_HISTORY_SIZE; i++)
-		total_load += LOAD_STABILIZATION_SCALE(i, cpuinfo->load_stabilization_history[i]);
+		total_load += (u64)LOAD_STABILIZATION_SCALE(i, cpuinfo->load_stabilization_history[i]);
 
 	return total_load;
 }
 
 static int lsh_read_stabilized_load(struct cpufreq_nexus_cpuinfo *cpuinfo) {
-	return lsh_read_scaled_load(cpuinfo) / GAUSS_SUM(LOAD_STABILIZATION_HISTORY_SIZE);
+	u64 load = lsh_read_scaled_load(cpuinfo) / GAUSS_SUM(LOAD_STABILIZATION_HISTORY_SIZE);
+	return (int)load;
 }
 
 static int cpufreq_nexus_timer(struct cpufreq_nexus_cpuinfo *cpuinfo, struct cpufreq_policy *policy, struct cpufreq_nexus_tunables *tunables, int is_stopping)
