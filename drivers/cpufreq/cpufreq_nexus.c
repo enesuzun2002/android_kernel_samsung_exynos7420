@@ -240,6 +240,10 @@ struct cpufreq_nexus_tunables {
 	// whether to enable load-stabilization
 	#define DEFAULT_LOAD_STABILIZATION 0
 	int load_stabilization;
+
+	// threshold-load above which the cpugov ignores load stabiliaztion for this run
+	#define DEFAULT_LOAD_STABILIZATION_THRESHOLD 50
+	int load_stabilization_threshold;
 };
 
 static DEFINE_PER_CPU(struct cpufreq_nexus_cpuinfo, gov_cpuinfo);
@@ -343,7 +347,7 @@ static int cpufreq_nexus_timer(struct cpufreq_nexus_cpuinfo *cpuinfo, struct cpu
 		load_debug = load;
 		nexus_debug("%s: cpu%d: load = %u\n", __func__, cpu, load);
 
-		if (tunables->load_stabilization) {
+		if (tunables->load_stabilization && load < tunables->load_stabilization_threshold) {
 			mutex_lock(&cpuinfo->load_stabilization_mutex);
 			lsh_insert_load(cpuinfo, load);
 			load = lsh_read_stabilized_load(cpuinfo);
@@ -755,6 +759,7 @@ gov_show_store(hispeed_load);
 gov_show_store(hispeed_delay);
 gov_show_store(hispeed_power_efficient);
 gov_show_store(load_stabilization);
+gov_show_store(load_stabilization_threshold);
 
 gov_sys_pol_show_store(down_load);
 gov_sys_pol_show_store(down_delay);
@@ -783,6 +788,7 @@ gov_sys_pol_show_store(hispeed_delay);
 gov_sys_pol_show_store(hispeed_power_efficient);
 gov_sys_pol_show_store(load_stabilization);
 gov_sys_pol_show(load_stabilization_debug);
+gov_sys_pol_show_store(load_stabilization_threshold);
 
 static struct attribute *attributes_gov_sys[] = {
 	&down_load_gov_sys.attr,
@@ -812,6 +818,7 @@ static struct attribute *attributes_gov_sys[] = {
 	&hispeed_power_efficient_gov_sys.attr,
 	&load_stabilization_gov_sys.attr,
 	&load_stabilization_debug_gov_sys.attr,
+	&load_stabilization_threshold_gov_sys.attr,
 	NULL // NULL has to be terminating entry
 };
 
@@ -848,6 +855,7 @@ static struct attribute *attributes_gov_pol[] = {
 	&hispeed_power_efficient_gov_pol.attr,
 	&load_stabilization_gov_pol.attr,
 	&load_stabilization_debug_gov_pol.attr,
+	&load_stabilization_threshold_gov_pol.attr,
 	NULL // NULL has to be terminating entry
 };
 
@@ -915,6 +923,7 @@ static int cpufreq_governor_nexus(struct cpufreq_policy *policy, unsigned int ev
 			tunables->hispeed_delay = DEFAULT_HISPEED_DELAY;
 			tunables->hispeed_power_efficient = DEFAULT_HISPEED_POWER_EFFICIENT;
 			tunables->load_stabilization = DEFAULT_LOAD_STABILIZATION;
+			tunables->load_stabilization_threshold = DEFAULT_LOAD_STABILIZATION_THRESHOLD;
 
 			rc = sysfs_create_group(get_governor_parent_kobj(policy), get_attribute_group());
 			if (rc) {
