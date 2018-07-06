@@ -189,15 +189,12 @@ struct cpufreq_nexus_tunables {
 
 	// minimal frequency chosen by the cpugov
 	unsigned int freq_min;
-	int freq_min_do_revalidate;
 
 	// maximal frequency chosen by the cpugov
 	unsigned int freq_max;
-	int freq_max_do_revalidate;
 
 	// frequency used when governor is in boost-mode
 	unsigned int boost_freq;
-	int boost_freq_do_revalidate;
 
 	// simple boost to freq_max
 	#define DEFAULT_BOOST 0
@@ -227,7 +224,6 @@ struct cpufreq_nexus_tunables {
 
 	// hispeed-frequency which can only be exceeded after persting hispeed-load
 	unsigned int hispeed_freq;
-	int hispeed_freq_do_revalidate;
 
 	// load which is used to determine if cpugov should exceed hispeed-frequency
 	#define DEFAULT_HISPEED_LOAD 100
@@ -334,38 +330,6 @@ static int cpufreq_nexus_timer(struct cpufreq_nexus_cpuinfo *cpuinfo, struct cpu
 
 		ret = 1;
 		goto exit;
-	}
-
-	// revalidate custom frequencies
-	// -----
-	// we don't have to care about concurrency as this isn't a
-	// life-devastating routine if it is executed twice on different cores
-	if (tunables->freq_min_do_revalidate) {
-		freq_debug = tunables->freq_min;
-		tunables->freq_min = choose_frequency(cpuinfo, &index, tunables->freq_min);
-		tunables->freq_min_do_revalidate = 0;
-		nexus_debug("%s: cpu%d: revalidated freq_min: %u -> %u\n", __func__, cpu, freq_debug, tunables->freq_min);
-	}
-
-	if (tunables->freq_max_do_revalidate) {
-		freq_debug = tunables->freq_max;
-		tunables->freq_max = choose_frequency(cpuinfo, &index, tunables->freq_max);
-		tunables->freq_max_do_revalidate = 0;
-		nexus_debug("%s: cpu%d: revalidated freq_max: %u -> %u\n", __func__, cpu, freq_debug, tunables->freq_max);
-	}
-
-	if (tunables->boost_freq_do_revalidate) {
-		freq_debug = tunables->boost_freq;
-		tunables->boost_freq = choose_frequency(cpuinfo, &index, tunables->boost_freq);
-		tunables->boost_freq_do_revalidate = 0;
-		nexus_debug("%s: cpu%d: revalidated boost_freq: %u -> %u\n", __func__, cpu, freq_debug, tunables->boost_freq);
-	}
-
-	if (tunables->hispeed_freq_do_revalidate && tunables->hispeed_freq != 0) {
-		freq_debug = tunables->hispeed_freq;
-		tunables->hispeed_freq = choose_frequency(cpuinfo, &index, tunables->hispeed_freq);
-		tunables->hispeed_freq_do_revalidate = 0;
-		nexus_debug("%s: cpu%d: revalidated hispeed_freq: %u -> %u\n", __func__, cpu, freq_debug, tunables->hispeed_freq);
 	}
 
 	// calculate frequencies
@@ -650,14 +614,15 @@ static ssize_t show_freq_min(struct cpufreq_nexus_tunables *tunables, char *buf)
 	return sprintf(buf, "%u\n", tunables->freq_min);
 }
 
-static ssize_t store_freq_min(struct cpufreq_nexus_tunables *tunables, const char *buf, size_t count)  {
+static ssize_t store_freq_min(struct cpufreq_nexus_tunables *tunables, const char *buf, size_t count)
+{
+	struct cpufreq_nexus_cpuinfo *cpuinfo = tunables->cpuinfo;
 	unsigned long val = 0;
-	int ret = kstrtoul(buf, 0, &val);
+	int index = 0, ret = kstrtoul(buf, 0, &val);
 	if (ret < 0)
 		return ret;
 
-	tunables->freq_min = val;
-	tunables->freq_min_do_revalidate = 1;
+	tunables->freq_min = choose_frequency(cpuinfo, &index, val);
 
 	return count;
 }
@@ -667,14 +632,15 @@ static ssize_t show_freq_max(struct cpufreq_nexus_tunables *tunables, char *buf)
 	return sprintf(buf, "%u\n", tunables->freq_max);
 }
 
-static ssize_t store_freq_max(struct cpufreq_nexus_tunables *tunables, const char *buf, size_t count)  {
+static ssize_t store_freq_max(struct cpufreq_nexus_tunables *tunables, const char *buf, size_t count)
+{
+	struct cpufreq_nexus_cpuinfo *cpuinfo = tunables->cpuinfo;
 	unsigned long val = 0;
-	int ret = kstrtoul(buf, 0, &val);
+	int index = 0, ret = kstrtoul(buf, 0, &val);
 	if (ret < 0)
 		return ret;
 
-	tunables->freq_max = val;
-	tunables->freq_max_do_revalidate = 1;
+	tunables->freq_max = choose_frequency(cpuinfo, &index, val);
 
 	return count;
 }
@@ -684,14 +650,15 @@ static ssize_t show_boost_freq(struct cpufreq_nexus_tunables *tunables, char *bu
 	return sprintf(buf, "%u\n", tunables->boost_freq);
 }
 
-static ssize_t store_boost_freq(struct cpufreq_nexus_tunables *tunables, const char *buf, size_t count)  {
+static ssize_t store_boost_freq(struct cpufreq_nexus_tunables *tunables, const char *buf, size_t count)
+{
+	struct cpufreq_nexus_cpuinfo *cpuinfo = tunables->cpuinfo;
 	unsigned long val = 0;
-	int ret = kstrtoul(buf, 0, &val);
+	int index = 0, ret = kstrtoul(buf, 0, &val);
 	if (ret < 0)
 		return ret;
 
-	tunables->boost_freq = val;
-	tunables->boost_freq_do_revalidate = 1;
+	tunables->boost_freq = choose_frequency(cpuinfo, &index, val);
 
 	return count;
 }
@@ -701,19 +668,21 @@ static ssize_t show_hispeed_freq(struct cpufreq_nexus_tunables *tunables, char *
 	return sprintf(buf, "%u\n", tunables->hispeed_freq);
 }
 
-static ssize_t store_hispeed_freq(struct cpufreq_nexus_tunables *tunables, const char *buf, size_t count)  {
+static ssize_t store_hispeed_freq(struct cpufreq_nexus_tunables *tunables, const char *buf, size_t count)
+{
+	struct cpufreq_nexus_cpuinfo *cpuinfo = tunables->cpuinfo;
 	unsigned long val = 0;
-	int ret = kstrtoul(buf, 0, &val);
+	int index = 0, ret = kstrtoul(buf, 0, &val);
 	if (ret < 0)
 		return ret;
 
-	tunables->hispeed_freq = val;
-	tunables->hispeed_freq_do_revalidate = 1;
+	tunables->hispeed_freq = choose_frequency(cpuinfo, &index, val);
 
 	return count;
 }
 
-static ssize_t store_boostpulse(struct cpufreq_nexus_tunables *tunables, const char *buf, size_t count)  {
+static ssize_t store_boostpulse(struct cpufreq_nexus_tunables *tunables, const char *buf, size_t count)
+{
 	unsigned long val = 0;
 	int ret = kstrtoul(buf, 0, &val);
 	if (ret < 0)
