@@ -48,19 +48,19 @@ static DEFINE_MUTEX(cpufreq_governor_nexus_mutex);
 #define TASK_NAME_LEN 15
 
 /*
- * count of history items used to predict future
+ * count of history items used to stabilization future
  * system workload.
  *
  * defaults to ~66 items (history for one second
  * when using default timer rate of 15ms)
  */
-#define LOAD_PREDICTION_HISTORY_SIZE (1000 / 15)
+#define LOAD_STABILIZATION_HISTORY_SIZE (1000 / 15)
 
 /*
  * Scales the given load and index to give us a
  * prioritized load history 
  */
-#define LOAD_PREDICTION_SCALE(index, load) ((LOAD_PREDICTION_HISTORY_SIZE - index) * load)
+#define LOAD_STABILIZATION_SCALE(index, load) ((LOAD_STABILIZATION_HISTORY_SIZE - index) * load)
 
 #define GAUSS_SUM(max) \
 	((max * (max + 1)) / 2)
@@ -79,18 +79,18 @@ struct cpufreq_nexus_cpuinfo {
 	 *   - First line display the index in the histroy
 	 *   - Second line display the actual timestamp of the load entry
 	 *
-	 * size equals to LOAD_PREDICTION_HISTORY_SIZE
+	 * size equals to LOAD_STABILIZATION_HISTORY_SIZE
 	 * rate equals to the current timer_rate-setting
 	 *
-	 * The load prection may get slightly more inaccurate when the timer_rate
-	 * setting get altered as it uses inaccurate timespans to predict the workload
+	 * The load stabilization may get slightly more inaccurate when the timer_rate
+	 * setting get altered as it uses inaccurate timespans to calculate the workload
 	 *
 	 * |----------------|----------------|-----|-------------------|
 	 * | 0              | 1              | ... | size - 1          |
 	 * | now - 1 * rate | now - 2 * rate | ... | now - size * rate |
 	 * |----------------|----------------|-----|-------------------|
 	 */
-	int *load_prediction_history;
+	int *load_stabilization_history;
 
 	cputime64_t prev_idle;
 	cputime64_t prev_wall;
@@ -104,7 +104,7 @@ struct cpufreq_nexus_cpuinfo {
 	struct task_struct *work;
 
 	struct mutex timer_mutex;
-	struct mutex load_prediction_mutex;
+	struct mutex load_stabilization_mutex;
 };
 
 struct cpufreq_nexus_tunables {
@@ -237,9 +237,9 @@ struct cpufreq_nexus_tunables {
 	#define DEFAULT_HISPEED_POWER_EFFICIENT 0
 	unsigned int hispeed_power_efficient;
 
-	// whether to enable load-prediction
-	#define DEFAULT_LOAD_PREDICTION 0
-	int load_prediction;
+	// whether to enable load-stabilization
+	#define DEFAULT_LOAD_STABILIZATION 0
+	int load_stabilization;
 };
 
 static DEFINE_PER_CPU(struct cpufreq_nexus_cpuinfo, gov_cpuinfo);
@@ -263,30 +263,30 @@ static unsigned int choose_frequency(struct cpufreq_nexus_cpuinfo *cpuinfo, int 
 	return cpuinfo->freq_table[*index].frequency;
 }
 
-static void lph_insert_load(struct cpufreq_nexus_cpuinfo *cpuinfo, int load) {
+static void lsh_insert_load(struct cpufreq_nexus_cpuinfo *cpuinfo, int load) {
 	// push back the first (n - 1) items for one slot, freeing up a[0]
 	memcpy(
-		cpuinfo->load_prediction_history + 1,
-		cpuinfo->load_prediction_history,
-		sizeof(int) * (LOAD_PREDICTION_HISTORY_SIZE - 1));
+		cpuinfo->load_stabilization_history + 1,
+		cpuinfo->load_stabilization_history,
+		sizeof(int) * (LOAD_STABILIZATION_HISTORY_SIZE - 1));
 
 	// assigning the current workload
-	cpuinfo->load_prediction_history[0] = load;
+	cpuinfo->load_stabilization_history[0] = load;
 }
 
-static int lph_read_scaled_load(struct cpufreq_nexus_cpuinfo *cpuinfo) {
+static int lsh_read_scaled_load(struct cpufreq_nexus_cpuinfo *cpuinfo) {
 	int i, total_load;
 
 	// add up all tracked workloads
 	total_load = 0;
-	for (i = 0; i < LOAD_PREDICTION_HISTORY_SIZE; i++)
-		total_load += LOAD_PREDICTION_SCALE(i, cpuinfo->load_prediction_history[i]);
+	for (i = 0; i < LOAD_STABILIZATION_HISTORY_SIZE; i++)
+		total_load += LOAD_STABILIZATION_SCALE(i, cpuinfo->load_stabilization_history[i]);
 
 	return total_load;
 }
 
-static int lph_read_predicted_load(struct cpufreq_nexus_cpuinfo *cpuinfo) {
-	return lph_read_scaled_load(cpuinfo) / GAUSS_SUM(LOAD_PREDICTION_HISTORY_SIZE);
+static int lsh_read_stabilized_load(struct cpufreq_nexus_cpuinfo *cpuinfo) {
+	return lsh_read_scaled_load(cpuinfo) / GAUSS_SUM(LOAD_STABILIZATION_HISTORY_SIZE);
 }
 
 static int cpufreq_nexus_timer(struct cpufreq_nexus_cpuinfo *cpuinfo, struct cpufreq_policy *policy, struct cpufreq_nexus_tunables *tunables, int is_stopping)
@@ -341,13 +341,13 @@ static int cpufreq_nexus_timer(struct cpufreq_nexus_cpuinfo *cpuinfo, struct cpu
 		load_debug = load;
 		nexus_debug("%s: cpu%d: load = %u\n", __func__, cpu, load);
 
-		if (tunables->load_prediction) {
-			mutex_lock(&cpuinfo->load_prediction_mutex);
-			lph_insert_load(cpuinfo, load);
-			load = lph_read_predicted_load(cpuinfo);
-			mutex_unlock(&cpuinfo->load_prediction_mutex);
+		if (tunables->load_stabilization) {
+			mutex_lock(&cpuinfo->load_stabilization_mutex);
+			lsh_insert_load(cpuinfo, load);
+			load = lsh_read_stabilized_load(cpuinfo);
+			mutex_unlock(&cpuinfo->load_stabilization_mutex);
 
-			// TODO: ensure that the predictive calculations
+			// TODO: ensure that the stabilized calculations
 			// are kept in limit properly
 			WARN_ON(load < 0 || load > 100);
 		}
@@ -692,42 +692,42 @@ static ssize_t store_boostpulse(struct cpufreq_nexus_tunables *tunables, const c
 	return count;
 }
 
-static ssize_t show_load_prediction_table(struct cpufreq_nexus_tunables *tunables, char *buf)
+static ssize_t show_load_stabilization_debug(struct cpufreq_nexus_tunables *tunables, char *buf)
 {
 	struct cpufreq_nexus_cpuinfo *cpuinfo = tunables->cpuinfo;
 	ssize_t size = 0;
 	int i, j;
 
-	if (!cpuinfo || !cpuinfo->load_prediction_history)
+	if (!cpuinfo || !cpuinfo->load_stabilization_history)
 		return 0;
 
-	mutex_lock(&cpuinfo->load_prediction_mutex);
+	mutex_lock(&cpuinfo->load_stabilization_mutex);
 
 	size = sprintf(buf, 
-		"load prediction = %s\n"
-		"load prediction size = %d\n"
-		"load prediction avg = %u\n"
+		"load stabilization = %s\n"
+		"load stabilization result = %u\n"
+		"load stabilization table size = %d\n"
 		"\n"
-		"load prediction table:\n"
+		"load stabilization table:\n"
 		"\n",
-			(tunables->load_prediction ? "on" : "off"),
-			LOAD_PREDICTION_HISTORY_SIZE,
-			lph_read_predicted_load(cpuinfo));
+			(tunables->load_stabilization ? "on" : "off"),
+			lsh_read_stabilized_load(cpuinfo),
+			LOAD_STABILIZATION_HISTORY_SIZE);
 
 	size = sprintf(buf, "%s     ", buf);
 	for (i = 0; i < 16; i++)
 		size = sprintf(buf, "%s%02x   ", buf, i);
 	size = sprintf(buf, "%s\n", buf);
 
-	for (i = 0; i < LOAD_PREDICTION_HISTORY_SIZE; i += 16) {
+	for (i = 0; i < LOAD_STABILIZATION_HISTORY_SIZE; i += 16) {
 		size = sprintf(buf, "%s%02x  ", buf, i);
-		for (j = 0; j < 16 && ((i + j) < LOAD_PREDICTION_HISTORY_SIZE); j++) {
-			size = sprintf(buf, "%s%3d  ", buf, cpuinfo->load_prediction_history[i + j]);
+		for (j = 0; j < 16 && ((i + j) < LOAD_STABILIZATION_HISTORY_SIZE); j++) {
+			size = sprintf(buf, "%s%3d  ", buf, cpuinfo->load_stabilization_history[i + j]);
 		}
 		size = sprintf(buf, "%s\n", buf);
 	}
 
-	mutex_unlock(&cpuinfo->load_prediction_mutex);
+	mutex_unlock(&cpuinfo->load_stabilization_mutex);
 
 	return size;
 }
@@ -752,7 +752,7 @@ gov_show_store(reset_stuck_timespan);
 gov_show_store(hispeed_load);
 gov_show_store(hispeed_delay);
 gov_show_store(hispeed_power_efficient);
-gov_show_store(load_prediction);
+gov_show_store(load_stabilization);
 
 gov_sys_pol_show_store(down_load);
 gov_sys_pol_show_store(down_delay);
@@ -779,8 +779,8 @@ gov_sys_pol_show_store(hispeed_freq);
 gov_sys_pol_show_store(hispeed_load);
 gov_sys_pol_show_store(hispeed_delay);
 gov_sys_pol_show_store(hispeed_power_efficient);
-gov_sys_pol_show_store(load_prediction);
-gov_sys_pol_show(load_prediction_table);
+gov_sys_pol_show_store(load_stabilization);
+gov_sys_pol_show(load_stabilization_debug);
 
 static struct attribute *attributes_gov_sys[] = {
 	&down_load_gov_sys.attr,
@@ -808,8 +808,8 @@ static struct attribute *attributes_gov_sys[] = {
 	&hispeed_load_gov_sys.attr,
 	&hispeed_delay_gov_sys.attr,
 	&hispeed_power_efficient_gov_sys.attr,
-	&load_prediction_gov_sys.attr,
-	&load_prediction_table_gov_sys.attr,
+	&load_stabilization_gov_sys.attr,
+	&load_stabilization_debug_gov_sys.attr,
 	NULL // NULL has to be terminating entry
 };
 
@@ -844,8 +844,8 @@ static struct attribute *attributes_gov_pol[] = {
 	&hispeed_load_gov_pol.attr,
 	&hispeed_delay_gov_pol.attr,
 	&hispeed_power_efficient_gov_pol.attr,
-	&load_prediction_gov_pol.attr,
-	&load_prediction_table_gov_pol.attr,
+	&load_stabilization_gov_pol.attr,
+	&load_stabilization_debug_gov_pol.attr,
 	NULL // NULL has to be terminating entry
 };
 
@@ -912,7 +912,7 @@ static int cpufreq_governor_nexus(struct cpufreq_policy *policy, unsigned int ev
 			tunables->hispeed_load = DEFAULT_HISPEED_LOAD;
 			tunables->hispeed_delay = DEFAULT_HISPEED_DELAY;
 			tunables->hispeed_power_efficient = DEFAULT_HISPEED_POWER_EFFICIENT;
-			tunables->load_prediction = DEFAULT_LOAD_PREDICTION;
+			tunables->load_stabilization = DEFAULT_LOAD_STABILIZATION;
 
 			rc = sysfs_create_group(get_governor_parent_kobj(policy), get_attribute_group());
 			if (rc) {
@@ -960,13 +960,13 @@ static int cpufreq_governor_nexus(struct cpufreq_policy *policy, unsigned int ev
 				cpuinfo->policy = policy;
 				cpuinfo->init = 1;
 
-				cpuinfo->load_prediction_history =
-					kzalloc(sizeof(int) * LOAD_PREDICTION_HISTORY_SIZE, GFP_KERNEL);
+				cpuinfo->load_stabilization_history =
+					kzalloc(sizeof(int) * LOAD_STABILIZATION_HISTORY_SIZE, GFP_KERNEL);
 
 				tunables->cpuinfo = cpuinfo;
 
 				mutex_init(&cpuinfo->timer_mutex);
-				mutex_init(&cpuinfo->load_prediction_mutex);
+				mutex_init(&cpuinfo->load_stabilization_mutex);
 
 				delay = usecs_to_jiffies(tunables->timer_rate);
 				if (num_online_cpus() > 1) {
@@ -999,7 +999,7 @@ static int cpufreq_governor_nexus(struct cpufreq_policy *policy, unsigned int ev
 
 				tunables->cpuinfo = NULL;
 
-				kfree(cpuinfo->load_prediction_history);
+				kfree(cpuinfo->load_stabilization_history);
 
 				kthread_stop(cpuinfo->work);
 				put_task_struct(cpuinfo->work);
