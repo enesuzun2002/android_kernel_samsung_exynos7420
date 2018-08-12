@@ -151,10 +151,12 @@ void gpu_destroy_context(void *ctx)
 
 	if (kctx->ctx_need_qos)
 	{
+#ifdef CONFIG_SCHED_HMP
 		int i, policy_count;
 		const struct kbase_pm_policy *const *policy_list;
 		struct exynos_context *platform;
 		platform = (struct exynos_context *) kbdev->platform_context;
+#endif
 #ifdef CONFIG_MALI_DVFS
 		gpu_dvfs_boost_lock(GPU_DVFS_BOOST_UNSET);
 #endif
@@ -180,7 +182,7 @@ void gpu_destroy_context(void *ctx)
 		set_hmp_boost(0);
 		set_hmp_aggressive_up_migration(false);
 		set_hmp_aggressive_yield(false);
-#endif
+#endif /* CONFIG_SCHED_HMP */
 	}
 }
 
@@ -260,10 +262,12 @@ int gpu_vendor_dispatch(struct kbase_context *kctx, void * const args, u32 args_
 #ifdef CONFIG_MALI_DVFS
 			struct kbase_uk_custom_command *kgp = (struct kbase_uk_custom_command *)args;
 #endif /* CONFIG_MALI_DVFS */
+#ifdef CONFIG_SCHED_HMP
 			int i, policy_count;
 			const struct kbase_pm_policy *const *policy_list;
 			struct exynos_context *platform;
 			platform = (struct exynos_context *) kbdev->platform_context;
+#endif
 			if (!kctx->ctx_need_qos) {
 				kctx->ctx_need_qos = true;
 #ifdef CONFIG_SCHED_HMP
@@ -280,7 +284,7 @@ int gpu_vendor_dispatch(struct kbase_context *kctx, void * const args, u32 args_
 				set_hmp_boost(1);
 				set_hmp_aggressive_up_migration(true);
 				set_hmp_aggressive_yield(true);
-#endif
+#endif /* CONFIG_SCHED_HMP */
 			}
 #ifdef CONFIG_MALI_DVFS
 			if (kgp->padding) {
@@ -298,22 +302,26 @@ int gpu_vendor_dispatch(struct kbase_context *kctx, void * const args, u32 args_
 #ifdef CONFIG_MALI_DVFS
 			struct kbase_uk_custom_command *kgp = (struct kbase_uk_custom_command*)args;
 #endif /* CONFIG_MALI_DVFS */
+#ifdef CONFIG_SCHED_HMP
 			int i, policy_count;
 			const struct kbase_pm_policy *const *policy_list;
 			struct exynos_context *platform;
 			platform = (struct exynos_context *) kbdev->platform_context;
+#endif /* CONFIG_SCHED_HMP */
 			if (kctx->ctx_need_qos) {
 				kctx->ctx_need_qos = false;
 #ifdef CONFIG_SCHED_HMP
 				/* set policy back */
-				policy_count = kbase_pm_list_policies(&policy_list);
-				for (i = 0; i < policy_count; i++) {
-					if (sysfs_streq(policy_list[i]->name, platform->cur_policy->name)) {
-						kbase_pm_set_policy(kbdev, policy_list[i]);
-						break;
+				if (platform->cur_policy) {
+					policy_count = kbase_pm_list_policies(&policy_list);
+					for (i = 0; i < policy_count; i++) {
+						if (sysfs_streq(policy_list[i]->name, platform->cur_policy->name)) {
+							kbase_pm_set_policy(kbdev, policy_list[i]);
+							break;
+						}
 					}
+					platform->cur_policy = NULL;
 				}
-				platform->cur_policy = NULL;
 				/* unset hmp boost */
 				set_hmp_boost(0);
 				set_hmp_aggressive_up_migration(false);

@@ -14,12 +14,12 @@
 
 MALI_CUSTOMER_RELEASE = 1
 
-# platform_name := $(shell echo $(CONFIG_MALI_PLATFORM_THIRDPARTY_NAME))
+soc_name := $(shell echo $(CONFIG_EXYNOS_SOC_NAME))
 
 obj-y += gpu_integration_callbacks.o
 obj-y += mali_kbase_platform.o
 obj-y += gpu_notifier.o
-obj-y += gpu_exynos7420.o
+obj-y += gpu_exynos$(soc_name).o
 obj-y += gpu_control.o
 obj-y += gpu_pmqos.o
 obj-y += gpu_utilization.o

@@ -1026,12 +1026,8 @@ static bool gpu_mem_profile_check_kctx(void *ctx)
 	bool found_element = false;
 
 	kctx = (struct kbase_context *)ctx;
-	KBASE_DEBUG_ASSERT(kctx != NULL);
+	kbdev = gpu_get_device_structure();
 
-	kbdev = kctx->kbdev;
-	KBASE_DEBUG_ASSERT(kbdev != NULL);
-
-	mutex_lock(&kbdev->kctx_list_lock);
 	list_for_each_entry_safe(element, tmp, &kbdev->kctx_list, link) {
 		if (element->kctx == kctx) {
 			if (kctx->destroying_context == false) {
@@ -1040,7 +1036,6 @@ static bool gpu_mem_profile_check_kctx(void *ctx)
 			}
 		}
 	}
-	mutex_unlock(&kbdev->kctx_list_lock);
 
 	return found_element;
 }

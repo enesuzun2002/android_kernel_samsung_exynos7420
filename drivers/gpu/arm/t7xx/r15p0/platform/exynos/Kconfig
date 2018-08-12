@@ -105,7 +105,7 @@ config MALI_BTS_OPTIMIZATION
 config MALI_DEBUG_KERNEL_SYSFS
        bool "Support Kernel Group Debug SysFS"
        depends on MALI_T7XX && MALI_DEBUG_SYS
-       default y
+       default n
        help
                Support Support Kernel Group Debug SysFS on /sys/kernel/gpu
 
