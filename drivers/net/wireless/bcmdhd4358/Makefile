@@ -608,7 +608,9 @@ ifeq ($(CONFIG_SLP),y)
 endif
 
 # GGSM_WIFI_5GHz_CHANNELS feature is define for only GGSM model
-DHDCFLAGS += -DCUSTOMER_SET_COUNTRY
+ifeq ($(GGSM_WIFI_5GHz_CHANNELS),true)
+  DHDCFLAGS += -DCUSTOMER_SET_COUNTRY
+endif
 
 # Compiler option for specific platform
 ifeq ($(CONFIG_ARCH_MSM8996),y)
