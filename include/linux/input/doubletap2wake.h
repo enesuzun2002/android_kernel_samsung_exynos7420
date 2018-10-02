@@ -1,8 +1,7 @@
 /*
- * DT2W 2.0 Driver - based on DT2W by Dennis Rassmann
+ * include/linux/input/doubletap2wake.h
  *
  * Copyright (c) 2013, Dennis Rassmann <showp1984@gmail.com>
- * Copyright (c) 2018  Lukas Berger <mail@lukasberger.at>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,8 +21,7 @@
 #ifndef _LINUX_DOUBLETAP2WAKE_H
 #define _LINUX_DOUBLETAP2WAKE_H
 
-bool dt2w_is_enabled();
-bool dt2w_just_enabled();
-void dt2w_set_just_enabled(bool value);
+extern int dt2w_switch;
+extern bool dt2w_toggled;
 
 #endif	/* _LINUX_DOUBLETAP2WAKE_H */
