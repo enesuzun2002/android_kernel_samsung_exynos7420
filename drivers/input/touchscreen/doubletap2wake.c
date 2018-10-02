@@ -19,7 +19,6 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/fb.h>
 #include <linux/init.h>
@@ -112,11 +111,11 @@ static bool dt2w_static_wakelock_enabled;
 /*
  * DT2W Global Stuff
  */
-bool dt2w_is_enabled(void) {
+bool dt2w_is_enabled() {
 	return dt2w_enabled;
 }
 
-bool dt2w_just_enabled(void) {
+bool dt2w_just_enabled() {
 	return dt2w_was_just_enabled;
 }
 
