@@ -22,8 +22,8 @@
 #ifndef _LINUX_DOUBLETAP2WAKE_H
 #define _LINUX_DOUBLETAP2WAKE_H
 
-bool dt2w_is_enabled(void);
-bool dt2w_just_enabled(void);
+bool dt2w_is_enabled();
+bool dt2w_just_enabled();
 void dt2w_set_just_enabled(bool value);
 
 #endif	/* _LINUX_DOUBLETAP2WAKE_H */
