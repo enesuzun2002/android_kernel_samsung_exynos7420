@@ -455,6 +455,7 @@ static int pn547_dev_open(struct inode *inode, struct file *filp)
 	return 0;
 }
 
+extern int ese_spi_pinctrl(int enable);
 #ifdef CONFIG_NFC_PN547_ESE_SUPPORT
 static unsigned char p61_trans_acc_on = 0;
 #endif
@@ -601,7 +602,8 @@ long pn547_dev_ioctl(struct file *filp,
 						signal_handler(P61_STATE_SPI, pn547_dev->nfc_service_pid);
 					}
 					else{
-						pr_info(" invalid nfc service pid....signalling failed%s   ---- %ld", __func__, pn547_dev->nfc_service_pid);
+						pr_info(" invalid nfc service pid....signalling failed%s   ---- %ld",
+							__func__, pn547_dev->nfc_service_pid);
 					}
 				}
 				pn547_dev->spi_ven_enabled = true;
@@ -612,6 +614,7 @@ long pn547_dev_ioctl(struct file *filp,
 				}
 				/* pull the gpio to high once NFCC is power on*/
 				gpio_set_value(pn547_dev->ese_pwr_req, 1);
+				ese_spi_pinctrl(1);/*for secure spi pinctrl*/
 				msleep(10);
 			} else {
 				pr_info("%s : PN61_SET_SPI_PWR -  power on ese failed \n", __func__);
@@ -624,8 +627,10 @@ long pn547_dev_ioctl(struct file *filp,
 				p61_update_access_state(pn547_dev, P61_STATE_SPI_PRIO, false);
 				if (!(current_state & P61_STATE_WIRED))
 				{
-					svdd_sync_onoff(pn547_dev->nfc_service_pid, P61_STATE_SPI_SVDD_SYNC_START | P61_STATE_SPI_PRIO_END);
+					svdd_sync_onoff(pn547_dev->nfc_service_pid,
+						P61_STATE_SPI_SVDD_SYNC_START | P61_STATE_SPI_PRIO_END);
 					gpio_set_value(pn547_dev->ese_pwr_req, 0);
+					ese_spi_pinctrl(0);
 					msleep(60);
 					svdd_sync_onoff(pn547_dev->nfc_service_pid, P61_STATE_SPI_SVDD_SYNC_END);
 				}
@@ -655,6 +660,7 @@ long pn547_dev_ioctl(struct file *filp,
 				{
 					svdd_sync_onoff(pn547_dev->nfc_service_pid, P61_STATE_SPI_SVDD_SYNC_START | P61_STATE_SPI_END);
 					gpio_set_value(pn547_dev->ese_pwr_req, 0);
+					ese_spi_pinctrl(0);
 					msleep(60);
 					svdd_sync_onoff(pn547_dev->nfc_service_pid, P61_STATE_SPI_SVDD_SYNC_END);
 				}
@@ -699,6 +705,7 @@ long pn547_dev_ioctl(struct file *filp,
 				msleep(60);
 				svdd_sync_onoff(pn547_dev->nfc_service_pid, P61_STATE_SPI_SVDD_SYNC_END);
 				gpio_set_value(pn547_dev->ese_pwr_req, 1);
+				ese_spi_pinctrl(1);
 				msleep(10);
 			} else {
 				pr_info("%s : PN61_SET_SPI_PWR - reset  failed \n", __func__);
@@ -717,7 +724,8 @@ long pn547_dev_ioctl(struct file *filp,
 						signal_handler(P61_STATE_SPI_PRIO, pn547_dev->nfc_service_pid);
 					}
 					else{
-						pr_info(" invalid nfc service pid....signalling failed%s   ---- %ld", __func__, pn547_dev->nfc_service_pid);
+						pr_info(" invalid nfc service pid....signalling failed%s   ---- %ld",
+							__func__, pn547_dev->nfc_service_pid);
 					}
 				}
 				pn547_dev->spi_ven_enabled = true;
@@ -728,6 +736,7 @@ long pn547_dev_ioctl(struct file *filp,
 				}
 				/* pull the gpio to high once NFCC is power on*/
 				gpio_set_value(pn547_dev->ese_pwr_req, 1);
+				ese_spi_pinctrl(1);
 				msleep(10);
 			}else {
 				pr_info("%s : Prio Session Start power on ese failed 0x%x\n", __func__, current_state);
@@ -748,7 +757,8 @@ long pn547_dev_ioctl(struct file *filp,
 						signal_handler(P61_STATE_SPI_PRIO_END, pn547_dev->nfc_service_pid);
 					}
 					else{
-						pr_info(" invalid nfc service pid....signalling failed%s   ---- %ld", __func__, pn547_dev->nfc_service_pid);
+						pr_info(" invalid nfc service pid....signalling failed%s   ---- %ld",
+							__func__, pn547_dev->nfc_service_pid);
 					}
 				}
 			}

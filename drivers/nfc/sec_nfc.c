@@ -74,12 +74,21 @@ struct sec_nfc_i2c_info {};
 #include <linux/poll.h>
 #include <linux/sched.h>
 #include <linux/i2c.h>
+#ifdef CONFIG_ESE_SECURE
+#include <linux/smc.h>
+#endif
+
+#include <linux/moduleparam.h>
+
+static int wl_nfc = 2;
+module_param(wl_nfc, int, 0644);
 
 #define SEC_NFC_GET_INFO(dev) i2c_get_clientdata(to_i2c_client(dev))
 enum sec_nfc_irq {
+	SEC_NFC_SKIP = -1,
 	SEC_NFC_NONE,
 	SEC_NFC_INT,
-	SEC_NFC_SKIP,
+	SEC_NFC_READ_TIMES,
 };
 
 struct sec_nfc_i2c_info {
@@ -142,11 +151,11 @@ static irqreturn_t sec_nfc_irq_thread_fn(int irq, void *dev_id)
 		return IRQ_HANDLED;
 	}
 
-	info->i2c_info.read_irq = SEC_NFC_INT;
+	info->i2c_info.read_irq += SEC_NFC_READ_TIMES;
 	mutex_unlock(&info->i2c_info.read_mutex);
 
 	wake_up_interruptible(&info->i2c_info.read_wait);
-	wake_lock_timeout(&info->nfc_wake_lock, 2*HZ);
+	wake_lock_timeout(&info->nfc_wake_lock, wl_nfc*HZ);
 
 	return IRQ_HANDLED;
 }
@@ -176,6 +185,14 @@ static ssize_t sec_nfc_read(struct file *file, char __user *buf,
 	}
 
 	mutex_lock(&info->i2c_info.read_mutex);
+	if(count == 0)
+	{
+		if (info->i2c_info.read_irq >= SEC_NFC_INT)
+			info->i2c_info.read_irq--;
+		mutex_unlock(&info->i2c_info.read_mutex);
+		goto out;
+	}
+
 	irq = info->i2c_info.read_irq;
 	mutex_unlock(&info->i2c_info.read_mutex);
 	if (irq == SEC_NFC_NONE) {
@@ -211,7 +228,12 @@ static ssize_t sec_nfc_read(struct file *file, char __user *buf,
 		goto read_error;
 	}
 
-	info->i2c_info.read_irq = SEC_NFC_NONE;
+	if (info->i2c_info.read_irq >= SEC_NFC_INT)
+		info->i2c_info.read_irq--;
+
+	if(info->i2c_info.read_irq == SEC_NFC_READ_TIMES)
+		wake_up_interruptible(&info->i2c_info.read_wait);
+
 	mutex_unlock(&info->i2c_info.read_mutex);
 
 	if (copy_to_user(buf, info->i2c_info.buf, ret)) {
@@ -317,7 +339,7 @@ static unsigned int sec_nfc_poll(struct file *file, poll_table *wait)
 
 	mutex_lock(&info->i2c_info.read_mutex);
 	irq = info->i2c_info.read_irq;
-	if (irq == SEC_NFC_INT)
+	if (irq == SEC_NFC_READ_TIMES)
 		ret = (POLLIN | POLLRDNORM);
 	mutex_unlock(&info->i2c_info.read_mutex);
 
@@ -610,6 +632,31 @@ static long sec_nfc_ioctl(struct file *file, unsigned int cmd,
 		}
 		break;
 #endif
+	case SEC_NFC_SET_NPT_MODE:
+		if(SEC_NFC_NPT_CMD_ON == new) {
+			pr_info("%s: NFC OFF mode NPT - Turn on VEN.\n", __func__);
+			info->mode = SEC_NFC_MODE_FIRMWARE;
+			mutex_lock(&info->i2c_info.read_mutex);
+			info->i2c_info.read_irq = SEC_NFC_SKIP;
+			mutex_unlock(&info->i2c_info.read_mutex);
+			gpio_set_value(pdata->ven, SEC_NFC_PW_ON);
+#ifdef  CONFIG_SEC_NFC_CLK_REQ
+			sec_nfc_clk_ctl_enable(info);
+#endif
+			msleep(20);
+			if (pdata->firm) gpio_set_value(pdata->firm, SEC_NFC_FW_ON);
+			enable_irq_wake(info->i2c_info.i2c_dev->irq);
+		} else if(SEC_NFC_NPT_CMD_OFF == new) {
+			pr_info("%s: NFC OFF mode NPT - Turn off VEN.\n", __func__);
+			info->mode = SEC_NFC_MODE_OFF;
+			if (pdata->firm) gpio_set_value(pdata->firm, SEC_NFC_FW_OFF);
+			gpio_set_value(pdata->ven, SEC_NFC_PW_OFF);
+#ifdef  CONFIG_SEC_NFC_CLK_REQ
+			sec_nfc_clk_ctl_disable(info);
+#endif
+			disable_irq_wake(info->i2c_info.i2c_dev->irq);
+		}
+		break;
 
 	default:
 		pr_info("%s Unknow ioctl 0x%x\n", __func__, cmd);
@@ -1098,6 +1145,13 @@ static int __devinit sec_nfc_probe(struct i2c_client *client,
 {
 	int ret = 0;
 
+#ifdef CONFIG_ESE_SECURE
+	ret = exynos_smc(0x83000032, 0 , 0, 0);
+	if (ret == EBUSY) { 
+		pr_err("[NFC] eSE spi secure fail!\n");
+		return -EBUSY;
+	}
+#endif
 	ret = __sec_nfc_probe(&client->dev);
 	if (ret)
 		return ret;

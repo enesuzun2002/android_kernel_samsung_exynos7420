@@ -156,7 +156,7 @@ static int p3_suspend(void)
 	if (ret)
 		P3_ERR_MSG("P3 check suspend status! 0x%X\n", ret);
 
-	return 0;
+	return ret;
 }
 
 static int p3_resume(void)
@@ -170,7 +170,7 @@ static int p3_resume(void)
 	if (ret)
 		P3_ERR_MSG("P3 check resume status! 0x%X\n", ret);
 
-	return 0;
+	return ret;
 }
 static int p3_enable_clk(struct p3_dev *p3_device)
 {
@@ -1159,6 +1159,12 @@ static int p3_probe(struct spi_device *spi)
 	P3_DBG_MSG("%s chip select : %d , bus number = %d \n",
 		__FUNCTION__, spi->chip_select, spi->master->bus_num);
 
+#ifdef CONFIG_ESE_SECURE
+	if (p3_suspend() == EBUSY) {
+		P3_ERR_MSG("eSE spi Secure fail!\n"); 
+		return -EBUSY;
+	}
+#endif
 	p3_dev = kzalloc(sizeof(*p3_dev), GFP_KERNEL);
 	if (p3_dev == NULL)
 	{

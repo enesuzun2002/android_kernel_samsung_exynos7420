@@ -212,29 +212,27 @@ static int p61_ioctl_config_spi_gpio(
 #ifdef CONFIG_ESE_SECURE_ENABLE
 static int p61_suspend(void)
 {
-	u64 r0 = 0, r1 = 0, r2 = 0, r3 = 0;
+	u64 r0 = 0, r1 = 1, r2 = 0, r3 = 0;
 	int ret = 0;
 
 	r0 = (0x83000032);
 	ret = exynos_smc(r0, r1, r2, r3);
 
-	if (ret) {
-		P61_ERR_MSG("P61 check suspend status! 0x%X\n", ret);
-	}
+	if (ret)
+		P61_ERR_MSG("%s suspend status! 0x%X\n", __func__, ret);
 
 	return 0;
 }
 static int p61_resume(void)
 {
-	u64 r0 = 0, r1 = 0, r2 = 0, r3 = 0;
+	u64 r0 = 0, r1 = 1, r2 = 0, r3 = 0;
 	int ret = 0;
 
 	r0 = (0x83000033);
 	ret = exynos_smc(r0, r1, r2, r3);
 
-	if (ret) {
-		P61_ERR_MSG("P61 check resume status! 0x%X\n", ret);
-	}
+	if (ret)
+		P61_ERR_MSG("%s resume status! 0x%X\n", __func__, ret);
 
 	return 0;
 }
@@ -247,8 +245,6 @@ static int p61_set_clk(struct p61_dev *p61_device)
 	spin_lock_irq(&p61_device->ese_spi_lock);
 	spidev = spi_dev_get(p61_device->spi);
 	spin_unlock_irq(&p61_device->ese_spi_lock);
-
-	p61_resume();
 
 	spi_pclk = clk_get(NULL, SPI_CLK(p));
 
@@ -273,8 +269,6 @@ static int p61_set_clk(struct p61_dev *p61_device)
 static int p61_disable_clk(struct p61_dev *p61_device)
 {
 	struct clk *spi_pclk, *spi_sclk;
-
-	p61_suspend();
 
 	spi_pclk = clk_get(NULL, SPI_CLK(p));
 	if (IS_ERR(spi_pclk))
@@ -371,6 +365,27 @@ static int p61_disable_clk(struct p61_dev *p61_device)
 	return ret_val;
 }
 #endif
+
+int ese_spi_pinctrl(int enable) {
+	int ret=0;
+#ifdef CONFIG_ESE_SECURE_ENABLE
+	pr_info("%s [%d]\n", __func__, enable);
+
+	switch (enable) {
+	case 0:
+		p61_suspend();
+		break;
+	case 1:
+		p61_resume();
+	    break;
+	default:
+		pr_err("%s no matching!\n", __func__);
+		ret = -EINVAL;
+	}
+#endif
+	return ret;
+}
+EXPORT_SYMBOL_GPL(ese_spi_pinctrl);
 
 #ifndef CONFIG_ESE_SECURE_ENABLE
 static int p61_xfer(struct p61_dev *p61_device,
@@ -607,7 +622,7 @@ static long p61_dev_ioctl(struct file *filp, unsigned int cmd,
 		pr_info(KERN_ALERT " P61_SET_SPM_PWR: enter");
 		ret = pn547_dev_ioctl(filp, P61_SET_SPI_PWR, arg);
 		pwr_req_on = arg;
-		pr_info(KERN_ALERT " P61_SET_SPM_PWR: exit");
+		pr_info(KERN_ALERT " P61_SET_SPM_PWR: exit\n");
 		break;
 
 	case P61_GET_SPM_STATUS:
@@ -619,7 +634,7 @@ static long p61_dev_ioctl(struct file *filp, unsigned int cmd,
 	case P61_GET_ESE_ACCESS:
 		P61_DBG_MSG(KERN_ALERT " P61_GET_ESE_ACCESS: enter");
 		ret = pn547_dev_ioctl(filp, P547_GET_ESE_ACCESS, arg);
-		P61_DBG_MSG(KERN_ALERT " P61_GET_ESE_ACCESS ret: %d exit",ret);
+		P61_DBG_MSG(KERN_ALERT " P61_GET_ESE_ACCESS ret: %d exit\n",ret);
 		break;
 
 	default:
@@ -643,10 +658,6 @@ static int p61_dev_release(struct inode *inode, struct file *file)
 		pr_info("%s: [NFC-ESE] disable clock.\n", __func__);
 		p61_disable_clk(p61_dev);
 	}
-
-#ifdef CONFIG_ESE_SECURE_ENABLE
-	p61_suspend();
-#endif
 
 	if (wake_lock_active(&p61_dev->ese_lock)) {
 		pr_info("%s: [NFC-ESE] wake unlock.\n", __func__);
