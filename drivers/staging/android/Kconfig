@@ -8,16 +8,30 @@ config ANDROID
 
 if ANDROID
 
-config ANDROID_BINDER_IPC
-	bool "Android Binder IPC Driver"
-	default n
+config ANDROID_BINDER_DEVICES
+	string "Android Binder devices"
+	depends on ANDROID_BINDER_IPC
+	default "binder,hwbinder,vndbinder"
 	---help---
-	  Binder is used in Android for both communication between processes,
-	  and remote method invocation.
+	  Default value for the binder.devices parameter.
 
-	  This means one Android process can call a method/routine in another
-	  Android process, using Binder to identify, invoke and pass arguments
-	  between said processes.
+	  The binder.devices parameter is a comma-separated list of strings
+	  that specifies the names of the binder device nodes that will be
+	  created. Each binder device has its own context manager, and is
+	  therefore logically separated from the other devices.
+
+config ANDROID_BINDER_IPC_32BIT
+	bool
+	depends on !64BIT && ANDROID_BINDER_IPC
+	default y
+	---help---
+	  The Binder API has been changed to support both 32 and 64bit
+	  applications in a mixed environment.
+
+	  Enable this to support an old 32-bit Android user-space (v4.4 and
+	  earlier).
+
+	  Note that enabling this will break newer Android user-space.
 
 config ASHMEM
 	bool "Enable the Anonymous Shared Memory Subsystem"
@@ -34,6 +48,7 @@ config ASHMEM
 config ANDROID_LOGGER
 	tristate "Android log driver"
 	default n
+	depends on !EXYNOS_SNAPSHOT_PSTORE
 	---help---
 	  This adds support for system-wide logging using four log buffers.
 
@@ -62,6 +77,15 @@ config ANDROID_LOW_MEMORY_KILLER
 	default N
 	---help---
 	  Registers processes to be killed when memory is low
+
+config ANDROID_LOW_MEMORY_KILLER_AUTODETECT_OOM_ADJ_VALUES
+	bool "Android Low Memory Killer: detect oom_adj values"
+	depends on ANDROID_LOW_MEMORY_KILLER
+	default y
+	---help---
+	  Detect oom_adj values written to
+	  /sys/module/lowmemorykiller/parameters/adj and convert them
+	  to oom_score_adj values.
 
 config ANDROID_INTF_ALARM_DEV
 	bool "Android alarm driver"
@@ -98,6 +122,21 @@ config SW_SYNC_USER
 	  Provides a user space API to the sw sync object.
 	  *WARNING* improper use of this can result in deadlocking kernel
 	  drivers from userspace.
+
+config SEC_OOM_KILLER
+        bool "Android OOM Killer"
+        default n
+        help
+          klaatu@samsung
+          This enables 'Android-Style oom-killer'
+          The way to select victim by oom-killer provided by
+          linux kernel is totally different from android policy.
+          Hence, it makes more sense that we select the oom victim
+          as android does when LMK is invoked.
+
+source "drivers/staging/android/ion/Kconfig"
+
+source "drivers/staging/android/fiq_debugger/Kconfig"
 
 endif # if ANDROID
 

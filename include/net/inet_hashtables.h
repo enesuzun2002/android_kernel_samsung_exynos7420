@@ -37,12 +37,11 @@
 #include <asm/byteorder.h>
 
 /* This is for all connections with a full identity, no wildcards.
- * One chain is dedicated to TIME_WAIT sockets.
- * I'll experiment with dynamic table growth later.
+ * The 'e' prefix stands for Establish, but we really put all sockets
+ * but LISTEN ones.
  */
 struct inet_ehash_bucket {
 	struct hlist_nulls_head chain;
-	struct hlist_nulls_head twchain;
 };
 
 /* There are a few simple rules, which allow for local port reuse by
@@ -123,7 +122,6 @@ struct inet_hashinfo {
 	 *
 	 *          TCP_ESTABLISHED <= sk->sk_state < TCP_CLOSE
 	 *
-	 * TIME_WAIT sockets use a separate chain (twchain).
 	 */
 	struct inet_ehash_bucket	*ehash;
 	spinlock_t			*ehash_locks;
@@ -304,30 +302,17 @@ static inline struct sock *inet_lookup_listener(struct net *net,
 				   ((__force __u64)(__be32)(__saddr)));
 #endif /* __BIG_ENDIAN */
 #define INET_MATCH(__sk, __net, __cookie, __saddr, __daddr, __ports, __dif)	\
-	((inet_sk(__sk)->inet_portpair == (__ports))		&&	\
-	 (inet_sk(__sk)->inet_addrpair == (__cookie))		&&	\
+	(((__sk)->sk_portpair == (__ports))			&&	\
+	 ((__sk)->sk_addrpair == (__cookie))			&&	\
 	 (!(__sk)->sk_bound_dev_if	||				\
 	   ((__sk)->sk_bound_dev_if == (__dif))) 		&& 	\
-	 net_eq(sock_net(__sk), (__net)))
-#define INET_TW_MATCH(__sk, __net, __cookie, __saddr, __daddr, __ports, __dif)\
-	((inet_twsk(__sk)->tw_portpair == (__ports))	&&		\
-	 (inet_twsk(__sk)->tw_addrpair == (__cookie))	&&		\
-	 (!(__sk)->sk_bound_dev_if	||				\
-	   ((__sk)->sk_bound_dev_if == (__dif)))	&&		\
 	 net_eq(sock_net(__sk), (__net)))
 #else /* 32-bit arch */
 #define INET_ADDR_COOKIE(__name, __saddr, __daddr)
 #define INET_MATCH(__sk, __net, __cookie, __saddr, __daddr, __ports, __dif) \
-	((inet_sk(__sk)->inet_portpair == (__ports))	&&		\
-	 (inet_sk(__sk)->inet_daddr	== (__saddr))	&&		\
-	 (inet_sk(__sk)->inet_rcv_saddr	== (__daddr))	&&		\
-	 (!(__sk)->sk_bound_dev_if	||				\
-	   ((__sk)->sk_bound_dev_if == (__dif))) 	&&		\
-	 net_eq(sock_net(__sk), (__net)))
-#define INET_TW_MATCH(__sk, __net, __cookie, __saddr, __daddr, __ports, __dif) \
-	((inet_twsk(__sk)->tw_portpair == (__ports))	&&		\
-	 (inet_twsk(__sk)->tw_daddr	== (__saddr))	&&		\
-	 (inet_twsk(__sk)->tw_rcv_saddr	== (__daddr))	&&		\
+	(((__sk)->sk_portpair == (__ports))		&&		\
+	 ((__sk)->sk_daddr	== (__saddr))		&&		\
+	 ((__sk)->sk_rcv_saddr	== (__daddr))		&&		\
 	 (!(__sk)->sk_bound_dev_if	||				\
 	   ((__sk)->sk_bound_dev_if == (__dif))) 	&&		\
 	 net_eq(sock_net(__sk), (__net)))

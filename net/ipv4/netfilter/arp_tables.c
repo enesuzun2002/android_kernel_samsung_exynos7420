@@ -468,7 +468,6 @@ static int mark_source_chains(const struct xt_table_info *newinfo,
 	}
 	return 1;
 }
-
 static inline int check_target(struct arpt_entry *e, const char *name)
 {
 	struct xt_entry_target *t = arpt_get_target(e);

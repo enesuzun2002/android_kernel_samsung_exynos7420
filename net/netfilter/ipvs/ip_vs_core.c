@@ -1185,7 +1185,7 @@ ip_vs_out(unsigned int hooknum, struct sk_buff *skb, int af)
 	if (likely(cp)) {
 		if (IP_VS_FWD_METHOD(cp) != IP_VS_CONN_F_MASQ)
 			goto ignore_cp;
-		return handle_response(af, skb, pd, cp, &iph, hooknum);
+		return handle_response(af, skb, pd, cp, &iph);
 	}
 	if (sysctl_nat_icmp_send(net) &&
 	    (pp->protocol == IPPROTO_TCP ||

@@ -69,8 +69,8 @@ static unsigned long mmap_rnd(void)
 {
 	unsigned long rnd;
 
-	/*
-	 *  8 bits of randomness in 32bit mmaps, 20 address space bits
+ 	/*
+ 	 *  8 bits of randomness in 32bit mmaps, 20 address space bits
 	 * 28 bits of randomness in 64bit mmaps, 40 address space bits
 	 */
 	if (mmap_is_ia32())
@@ -81,7 +81,7 @@ static unsigned long mmap_rnd(void)
 	return rnd << PAGE_SHIFT;
 }
 
-static unsigned long mmap_base(unsigned long rnd)
+static unsigned long mmap_base(void)
 {
 	unsigned long gap = rlimit(RLIMIT_STACK);
 

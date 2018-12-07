@@ -3,7 +3,6 @@
 
 #include <uapi/linux/usb/functionfs.h>
 
-
 struct ffs_data;
 struct usb_composite_dev;
 struct usb_configuration;

@@ -1,4 +1,5 @@
 # UAPI Header export list
+header-y += android/
 header-y += byteorder/
 header-y += can/
 header-y += caif/
@@ -230,6 +231,7 @@ header-y += limits.h
 header-y += llc.h
 header-y += loop.h
 header-y += lp.h
+header-y += m2m1shot.h
 header-y += magic.h
 header-y += major.h
 header-y += map_to_7segment.h
@@ -401,6 +403,8 @@ header-y += veth.h
 header-y += vfio.h
 header-y += vhost.h
 header-y += videodev2.h
+header-y += videodev2_exynos_camera.h
+header-y += videodev2_exynos_media.h
 header-y += virtio_9p.h
 header-y += virtio_balloon.h
 header-y += virtio_blk.h
@@ -421,3 +425,8 @@ header-y += x25.h
 header-y += xattr.h
 header-y += xfrm.h
 header-y += hw_breakpoint.h
+
+## MDM9x35
+header-y += msm_rmnet.h
+header-y += rmnet_data.h
+

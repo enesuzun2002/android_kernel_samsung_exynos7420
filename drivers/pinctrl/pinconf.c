@@ -35,7 +35,9 @@ int pinconf_check_ops(struct pinctrl_dev *pctldev)
 		return -EINVAL;
 	}
 	/* We have to be able to config the pins in SOME way */
-	if (!ops->pin_config_set && !ops->pin_config_group_set) {
+	if (!ops->pin_config_set && !ops->pin_config_group_set
+		&& !ops->pin_config_set_bulk
+		&& !ops->pin_config_group_set_bulk) {
 		dev_err(pctldev->dev,
 			"pinconf has to be able to set a pins config\n");
 		return -EINVAL;
@@ -332,7 +334,7 @@ int pinconf_apply_setting(struct pinctrl_setting const *setting)
 {
 	struct pinctrl_dev *pctldev = setting->pctldev;
 	const struct pinconf_ops *ops = pctldev->desc->confops;
-	int i, ret;
+	int ret, i;
 
 	if (!ops) {
 		dev_err(pctldev->dev, "missing confops\n");
@@ -341,39 +343,66 @@ int pinconf_apply_setting(struct pinctrl_setting const *setting)
 
 	switch (setting->type) {
 	case PIN_MAP_TYPE_CONFIGS_PIN:
-		if (!ops->pin_config_set) {
+		if (!ops->pin_config_set && !ops->pin_config_set_bulk) {
 			dev_err(pctldev->dev, "missing pin_config_set op\n");
 			return -EINVAL;
 		}
-		for (i = 0; i < setting->data.configs.num_configs; i++) {
-			ret = ops->pin_config_set(pctldev,
+		if (ops->pin_config_set_bulk) {
+			ret = ops->pin_config_set_bulk(pctldev,
 					setting->data.configs.group_or_pin,
-					setting->data.configs.configs[i]);
+					setting->data.configs.configs,
+					setting->data.configs.num_configs);
 			if (ret < 0) {
 				dev_err(pctldev->dev,
-					"pin_config_set op failed for pin %d config %08lx\n",
-					setting->data.configs.group_or_pin,
-					setting->data.configs.configs[i]);
+					"pin_config_set_bulk op failed for pin %d\n",
+					setting->data.configs.group_or_pin);
 				return ret;
+			}
+		} else if (ops->pin_config_set) {
+			for (i = 0; i < setting->data.configs.num_configs; i++) {
+				ret = ops->pin_config_set(pctldev,
+							  setting->data.configs.group_or_pin,
+							  setting->data.configs.configs[i]);
+				if (ret < 0) {
+					dev_err(pctldev->dev,
+						"pin_config_set op failed for pin %d config %08lx\n",
+						setting->data.configs.group_or_pin,
+						setting->data.configs.configs[i]);
+					return ret;
+				}
 			}
 		}
 		break;
 	case PIN_MAP_TYPE_CONFIGS_GROUP:
-		if (!ops->pin_config_group_set) {
+		if (!ops->pin_config_group_set &&
+		    !ops->pin_config_group_set_bulk) {
 			dev_err(pctldev->dev,
 				"missing pin_config_group_set op\n");
 			return -EINVAL;
 		}
-		for (i = 0; i < setting->data.configs.num_configs; i++) {
-			ret = ops->pin_config_group_set(pctldev,
+		if (ops->pin_config_group_set_bulk) {
+			ret = ops->pin_config_group_set_bulk(pctldev,
 					setting->data.configs.group_or_pin,
-					setting->data.configs.configs[i]);
+					setting->data.configs.configs,
+					setting->data.configs.num_configs);
 			if (ret < 0) {
 				dev_err(pctldev->dev,
-					"pin_config_group_set op failed for group %d config %08lx\n",
+					"pin_config_group_set_bulk op failed for group %d\n",
+					setting->data.configs.group_or_pin);
+				return ret;
+			}
+		} else if (ops->pin_config_group_set) {
+			for (i = 0; i < setting->data.configs.num_configs; i++) {
+				ret = ops->pin_config_group_set(pctldev,
 					setting->data.configs.group_or_pin,
 					setting->data.configs.configs[i]);
-				return ret;
+				if (ret < 0) {
+					dev_err(pctldev->dev,
+						"pin_config_group_set op failed for group %d config %08lx\n",
+						setting->data.configs.group_or_pin,
+						setting->data.configs.configs[i]);
+					return ret;
+				}
 			}
 		}
 		break;
@@ -674,7 +703,7 @@ exit:
  * <devicename> <state> <pinname> are values that should match the pinctrl-maps
  * <newvalue> reflects the new config and is driver dependant
  */
-static int pinconf_dbg_config_write(struct file *file,
+static ssize_t pinconf_dbg_config_write(struct file *file,
 	const char __user *user_buf, size_t count, loff_t *ppos)
 {
 	struct pinctrl_maps *maps_node;

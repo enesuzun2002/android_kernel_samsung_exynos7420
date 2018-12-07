@@ -14,7 +14,18 @@
 #ifndef _DW_MMC_H_
 #define _DW_MMC_H_
 
+#define DW_MMC_MAX_TRANSFER_SIZE	4096
+#define DW_MMC_SECTOR_SIZE		512
+
+#ifdef CONFIG_MMC_DW_FMP_DM_CRYPT
+#define MMC_DW_IDMAC_MULTIPLIER	\
+	(DW_MMC_MAX_TRANSFER_SIZE / DW_MMC_SECTOR_SIZE)
+#else
+#define MMC_DW_IDMAC_MULTIPLIER	1
+#endif
+
 #define DW_MMC_240A		0x240a
+#define DW_MMC_260A		0x260a
 
 #define SDMMC_CTRL		0x000
 #define SDMMC_PWREN		0x004
@@ -46,14 +57,14 @@
 #define SDMMC_VERID		0x06c
 #define SDMMC_HCON		0x070
 #define SDMMC_UHS_REG		0x074
+#define SDMMC_UHS_DDR_MODE		0x1
 #define SDMMC_BMOD		0x080
 #define SDMMC_PLDMND		0x084
-#define SDMMC_DBADDR		0x088
-#define SDMMC_IDSTS		0x08c
-#define SDMMC_IDINTEN		0x090
-#define SDMMC_DSCADDR		0x094
-#define SDMMC_BUFADDR		0x098
-#define SDMMC_DATA(x)		(x)
+
+#define SDMMC_SHA_CMD_IE	0x190
+#define SDMMC_SHA_CMD_IS	0x194
+#define QRDY_INT_EN		BIT(3)
+#define QRDY_INT		BIT(3)
 
 /*
  * Data offset is difference according to Version
@@ -98,6 +109,7 @@
 #define SDMMC_INT_HLE			BIT(12)
 #define SDMMC_INT_FRUN			BIT(11)
 #define SDMMC_INT_HTO			BIT(10)
+#define SDMMC_INT_VOLT_SW		BIT(10)
 #define SDMMC_INT_DTO			BIT(9)
 #define SDMMC_INT_RTO			BIT(8)
 #define SDMMC_INT_DCRC			BIT(7)
@@ -111,6 +123,8 @@
 #define SDMMC_INT_ERROR			0xbfc2
 /* Command register defines */
 #define SDMMC_CMD_START			BIT(31)
+#define SDMMC_CMD_USE_HOLD_REG		BIT(29)
+#define SDMMC_VOLT_SWITCH		BIT(28)
 #define SDMMC_CMD_CCS_EXP		BIT(23)
 #define SDMMC_CMD_CEATA_RD		BIT(22)
 #define SDMMC_CMD_UPD_CLK		BIT(21)
@@ -126,7 +140,12 @@
 #define SDMMC_CMD_RESP_EXP		BIT(6)
 #define SDMMC_CMD_INDX(n)		((n) & 0x1F)
 /* Status register defines */
+#define SDMMC_STATUS_DMA_REQ		BIT(31)
 #define SDMMC_GET_FCNT(x)		(((x)>>17) & 0x1FFF)
+#define SDMMC_DATA_BUSY			BIT(9)
+/* FIFOTH register defines */
+#define SDMMC_FIFOTH_DMA_MULTI_TRANS_SIZE	28
+#define SDMMC_FIFOTH_RX_WMARK		16
 /* Internal DMAC interrupt defines */
 #define SDMMC_IDMAC_INT_AI		BIT(9)
 #define SDMMC_IDMAC_INT_NI		BIT(8)
@@ -148,6 +167,9 @@
 #define mci_writel(dev, reg, value)			\
 	__raw_writel((value), (dev)->regs + SDMMC_##reg)
 
+/* timeout */
+#define dw_mci_set_timeout(host, value)        mci_writel(host, TMOUT, value)
+
 /* 16-bit FIFO access macros */
 #define mci_readw(dev, reg)			\
 	__raw_readw((dev)->regs + SDMMC_##reg)
@@ -156,10 +178,25 @@
 
 /* 64-bit FIFO access macros */
 #ifdef readq
+#ifdef CONFIG_MMC_DW_FORCE_32BIT_SFR_RW
+#define mci_readq(dev, reg) ({\
+		u64 __ret = 0;\
+		u32* ptr = (u32*)&__ret;\
+		*ptr++ = __raw_readl((dev)->regs + SDMMC_##reg);\
+		*ptr = __raw_readl((dev)->regs + SDMMC_##reg + 0x4);\
+		__ret;\
+	})
+#define mci_writeq(dev, reg, value) ({\
+		u32 *ptr = (u32*)&(value);\
+		__raw_writel(*ptr++, (dev)->regs + SDMMC_##reg);\
+		__raw_writel(*ptr, (dev)->regs + SDMMC_##reg + 0x4);\
+	})
+#else
 #define mci_readq(dev, reg)			\
 	__raw_readq((dev)->regs + SDMMC_##reg)
 #define mci_writeq(dev, reg, value)			\
 	__raw_writeq((value), (dev)->regs + SDMMC_##reg)
+#endif	/* CONFIG_MMC_DW_FORCE_32BIT_SFR_RW */
 #else
 /*
  * Dummy readq implementation for architectures that don't define it.
@@ -175,12 +212,49 @@
 	(*(volatile u64 __force *)((dev)->regs + SDMMC_##reg) = (value))
 #endif
 
+/*
+ * platform-dependent miscellaneous control
+ *
+ * Input arguments for platform-dependent control may be different
+ * for each one, respectively. If we would add functions like them
+ * whenever we need to do that, this common header file(dw_mmc.h)
+ * will be modified so frequently.
+ * The following enumeration type is to minimize an amount of changes
+ * of common files.
+ */
+enum dw_mci_misc_control {
+	CTRL_RESTORE_CLKSEL = 0,
+	CTRL_TURN_ON_2_8V,
+	CTRL_REQUEST_EXT_IRQ,
+	CTRL_CHECK_CD,
+	CTRL_SET_DEF_CAPS,
+	CTRL_TOGGLE_WINDOWS,
+#define DW_MCI_TOGGLE_BLOCK_CD			BIT(0)
+#define DW_MCI_TOGGLE_ENABLE			BIT(31)
+#define DW_MCI_TOGGLE_MASK			(0x7FFFFFFF)
+	CTRL_INIT_CLOCK,
+};
+
+#define SDMMC_DATA_TMOUT_SHIFT         11
+#define SDMMC_RESP_TMOUT               0xFF
+#define SDMMC_DATA_TMOUT_CRT           8
+#define SDMMC_DATA_TMOUT_EXT           0x7
+#define SDMMC_DATA_TMOUT_EXT_SHIFT     8
+
+extern u32 dw_mci_calc_timeout(struct dw_mci *host);
+
 extern int dw_mci_probe(struct dw_mci *host);
 extern void dw_mci_remove(struct dw_mci *host);
+extern void dw_mci_cmd_reg_summary(struct dw_mci *host);
+extern void dw_mci_status_reg_summary(struct dw_mci *host);
 #ifdef CONFIG_PM
 extern int dw_mci_suspend(struct dw_mci *host);
 extern int dw_mci_resume(struct dw_mci *host);
 #endif
+extern int dw_mci_ciu_clk_en(struct dw_mci *host, bool force_gating);
+extern void dw_mci_ciu_clk_dis(struct dw_mci *host);
+extern int dw_mci_biu_clk_en(struct dw_mci *host, bool force_gating);
+extern void dw_mci_biu_clk_dis(struct dw_mci *host);
 
 /**
  * dw_mci driver data - dw-mshc implementation specific driver data.
@@ -190,6 +264,8 @@ extern int dw_mci_resume(struct dw_mci *host);
  * @prepare_command: handle CMD register extensions.
  * @set_ios: handle bus specific extensions.
  * @parse_dt: parse implementation specific device tree properties.
+ * @cfg_smu: to configure security management unit
+ * @execute_tuning: "auto-tune" Clock-In parameters
  *
  * Provide controller implementation specific extensions. The usage of this
  * data structure is fully optional and usage of each member in this structure
@@ -200,7 +276,69 @@ struct dw_mci_drv_data {
 	int		(*init)(struct dw_mci *host);
 	int		(*setup_clock)(struct dw_mci *host);
 	void		(*prepare_command)(struct dw_mci *host, u32 *cmdr);
-	void		(*set_ios)(struct dw_mci *host, struct mmc_ios *ios);
+	void		(*register_dump)(struct dw_mci *host);
+	void		(*set_ios)(struct dw_mci *host, unsigned int tuning, struct mmc_ios *ios);
 	int		(*parse_dt)(struct dw_mci *host);
+	void		(*cfg_smu)(struct dw_mci *host);
+	int		(*execute_tuning)(struct dw_mci *host, u32 opcode);
+	int		(*misc_control)(struct dw_mci *host,
+			enum dw_mci_misc_control control, void *priv);
+	void		(*register_notifier)(struct dw_mci *host);
+	void		(*unregister_notifier)(struct dw_mci *host);
+};
+
+struct dw_mci_sfr_ram_dump {
+	u32			contrl;
+	u32			pwren;
+	u32			clkdiv;
+	u32			clkena;
+	u32			clksrc;
+	u32			tmout;
+	u32			ctype;
+	u32			blksiz;
+	u32			bytcnt;
+	u32			intmask;
+	u32			cmdarg;
+	u32			cmd;
+	u32		       	mintsts;
+	u32			rintsts;
+	u32			status;
+	u32			fifoth;
+	u32			tcbcnt;
+	u32			tbbcnt;
+	u32			debnce;
+	u32			uhs_reg;
+	u32			bmod;
+	u32			pldmnd;
+	u32			dbaddrl;
+	u32			dbaddru;
+	u32			dscaddrl;
+	u32			dscaddru;
+	u32			bufaddru;
+	u32			dbaddr;
+	u32			dscaddr;
+	u32			bufaddr;
+	u32			clksel;
+	u32			idsts64;
+	u32			idinten64;
+	u32			force_clk_stop;
+	u32			cdthrctl;
+	u32			ddr200_rdqs_en;
+	u32			ddr200_acync_fifo_ctrl;
+	u32			ddr200_dline_ctrl;
+	u32			fmp_emmcp_base;
+	u32			mpsecurity;
+	u32			mpstat;
+	u32			cmd_status;
+	u32			data_status;
+	u32			pending_events;
+	u32			completed_events;
+	u32			host_state;
+	u32			cmd_index;
+	u32			fifo_count;
+	u32			data_busy;
+	u32			data_3_state;
+	u32			fifo_tx_watermark;
+	u32			fifo_rx_watermark;
 };
 #endif /* _DW_MMC_H_ */

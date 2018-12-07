@@ -774,6 +774,55 @@ out_unlock:
 	return ret;
 }
 
+static inline int
+__mod_timer_on(struct timer_list *timer, int cpu,
+						unsigned long expires, bool pending_only)
+{
+	struct tvec_base *base, *new_base;
+	unsigned long flags;
+	int ret = 0;
+
+	timer_stats_timer_set_start_info(timer);
+	BUG_ON(!timer->function);
+
+	base = lock_timer_base(timer, &flags);
+
+	ret = detach_if_pending(timer, base, false);
+	if (!ret && pending_only)
+		goto out_unlock;
+
+	debug_activate(timer, expires);
+
+	new_base = per_cpu(tvec_bases, cpu);
+
+	if (base != new_base) {
+		/*
+		 * We are trying to schedule the timer on the local CPU.
+		 * However we can't change timer's base while it is running,
+		 * otherwise del_timer_sync() can't detect that the timer's
+		 * handler yet has not finished. This also guarantees that
+		 * the timer is serialized wrt itself.
+		 */
+		if (likely(base->running_timer != timer)) {
+			/* See the comment in lock_timer_base() */
+			timer_set_base(timer, NULL);
+			spin_unlock(&base->lock);
+			base = new_base;
+			spin_lock(&base->lock);
+			timer_set_base(timer, base);
+		}
+	}
+
+	timer->expires = expires;
+	internal_add_timer(base, timer);
+
+out_unlock:
+	spin_unlock_irqrestore(&base->lock, flags);
+
+	return ret;
+}
+
+
 /**
  * mod_timer_pending - modify a pending timer's timeout
  * @timer: the pending timer to be modified
@@ -864,6 +913,22 @@ int mod_timer(struct timer_list *timer, unsigned long expires)
 	return __mod_timer(timer, expires, false, TIMER_NOT_PINNED);
 }
 EXPORT_SYMBOL(mod_timer);
+
+int mod_timer_on(struct timer_list *timer, int cpu, unsigned long expires)
+{
+	expires = apply_slack(timer, expires);
+
+	/*
+	 * This is a common optimization triggered by the
+	 * networking code - if the timer is re-modified
+	 * to be the same thing then just return:
+	 */
+	if (timer_pending(timer) && timer->expires == expires)
+		return 1;
+
+	return __mod_timer_on(timer, cpu, expires, false);
+}
+EXPORT_SYMBOL(mod_timer_on);
 
 /**
  * mod_timer_pinned - modify a timer's timeout
@@ -1127,7 +1192,9 @@ static void call_timer_fn(struct timer_list *timer, void (*fn)(unsigned long),
 	lock_map_acquire(&lockdep_map);
 
 	trace_timer_expire_entry(timer);
+	exynos_ss_irq(ESS_FLAG_CALL_TIMER_FN, fn, irqs_disabled(), timer->expires & 0xffffffff);
 	fn(data);
+	exynos_ss_irq(ESS_FLAG_CALL_TIMER_FN, fn, irqs_disabled(), ESS_FLAG_OUT);
 	trace_timer_expire_exit(timer);
 
 	lock_map_release(&lockdep_map);
@@ -1183,6 +1250,7 @@ static inline void __run_timers(struct tvec_base *base)
 			fn = timer->function;
 			data = timer->data;
 			irqsafe = tbase_get_irqsafe(timer->base);
+			BUG_ON(tbase_get_base(timer->base) != base);
 
 			timer_stats_account_timer(timer);
 
@@ -1681,7 +1749,19 @@ void msleep(unsigned int msecs)
 		timeout = schedule_timeout_uninterruptible(timeout);
 }
 
-EXPORT_SYMBOL(msleep);
+/**
+ * usleep - sleep safely even with waitqueue interruptions
+ * @usecs: Time in microseconds to sleep for
+ */
+void usleep(unsigned int usecs)
+{
+	unsigned long timeout = usecs_to_jiffies(usecs) + 1;
+
+	while (timeout)
+		timeout = schedule_timeout_uninterruptible(timeout);
+}
+
+EXPORT_SYMBOL(usleep);
 
 /**
  * msleep_interruptible - sleep waiting for signals
@@ -1697,6 +1777,21 @@ unsigned long msleep_interruptible(unsigned int msecs)
 }
 
 EXPORT_SYMBOL(msleep_interruptible);
+
+/**
+ * usleep_interruptible - sleep waiting for signals
+ * @usecs: Time in microseconds to sleep for
+ */
+unsigned long usleep_interruptible(unsigned int usecs)
+{
+	unsigned long timeout = usecs_to_jiffies(usecs) + 1;
+
+	while (timeout && !signal_pending(current))
+		timeout = schedule_timeout_interruptible(timeout);
+	return jiffies_to_usecs(timeout);
+}
+
+EXPORT_SYMBOL(usleep_interruptible);
 
 static int __sched do_usleep_range(unsigned long min, unsigned long max)
 {

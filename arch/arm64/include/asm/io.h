@@ -22,59 +22,77 @@
 #ifdef __KERNEL__
 
 #include <linux/types.h>
+#include <linux/exynos-ss.h>
 
 #include <asm/byteorder.h>
 #include <asm/barrier.h>
 #include <asm/pgtable.h>
+#include <asm/early_ioremap.h>
 
 /*
  * Generic IO read/write.  These perform native-endian accesses.
  */
 static inline void __raw_writeb(u8 val, volatile void __iomem *addr)
 {
+	exynos_ss_reg(0, (size_t)val, (size_t)addr, ESS_FLAG_IN);
 	asm volatile("strb %w0, [%1]" : : "r" (val), "r" (addr));
+	exynos_ss_reg(0, (size_t)val, (size_t)addr, ESS_FLAG_OUT);
 }
 
 static inline void __raw_writew(u16 val, volatile void __iomem *addr)
 {
+	exynos_ss_reg(0, (size_t)val, (size_t)addr, ESS_FLAG_IN);
 	asm volatile("strh %w0, [%1]" : : "r" (val), "r" (addr));
+	exynos_ss_reg(0, (size_t)val, (size_t)addr, ESS_FLAG_OUT);
 }
 
 static inline void __raw_writel(u32 val, volatile void __iomem *addr)
 {
+	exynos_ss_reg(0, (size_t)val, (size_t)addr, ESS_FLAG_IN);
 	asm volatile("str %w0, [%1]" : : "r" (val), "r" (addr));
+	exynos_ss_reg(0, (size_t)val, (size_t)addr, ESS_FLAG_OUT);
 }
 
 static inline void __raw_writeq(u64 val, volatile void __iomem *addr)
 {
+	exynos_ss_reg(0, (size_t)val, (size_t)addr, ESS_FLAG_IN);
 	asm volatile("str %0, [%1]" : : "r" (val), "r" (addr));
+	exynos_ss_reg(0, (size_t)val, (size_t)addr, ESS_FLAG_OUT);
 }
 
 static inline u8 __raw_readb(const volatile void __iomem *addr)
 {
 	u8 val;
+	exynos_ss_reg(1, 0, (size_t)addr, ESS_FLAG_IN);
 	asm volatile("ldrb %w0, [%1]" : "=r" (val) : "r" (addr));
+	exynos_ss_reg(1, (size_t)val, (size_t)addr, ESS_FLAG_OUT);
 	return val;
 }
 
 static inline u16 __raw_readw(const volatile void __iomem *addr)
 {
 	u16 val;
+	exynos_ss_reg(1, 0, (size_t)addr, ESS_FLAG_IN);
 	asm volatile("ldrh %w0, [%1]" : "=r" (val) : "r" (addr));
+	exynos_ss_reg(1, (size_t)val, (size_t)addr, ESS_FLAG_OUT);
 	return val;
 }
 
 static inline u32 __raw_readl(const volatile void __iomem *addr)
 {
 	u32 val;
+	exynos_ss_reg(1, 0, (size_t)addr, ESS_FLAG_IN);
 	asm volatile("ldr %w0, [%1]" : "=r" (val) : "r" (addr));
+	exynos_ss_reg(1, (size_t)val, (size_t)addr, ESS_FLAG_OUT);
 	return val;
 }
 
 static inline u64 __raw_readq(const volatile void __iomem *addr)
 {
 	u64 val;
+	exynos_ss_reg(1, 0, (size_t)addr, ESS_FLAG_IN);
 	asm volatile("ldr %0, [%1]" : "=r" (val) : "r" (addr));
+	exynos_ss_reg(1, (size_t)val, (size_t)addr, ESS_FLAG_OUT);
 	return val;
 }
 
@@ -115,10 +133,28 @@ static inline u64 __raw_readq(const volatile void __iomem *addr)
 #define writeq(v,c)		({ __iowmb(); writeq_relaxed((v),(c)); })
 
 /*
+ * A typesafe __io() helper
+ */
+static inline void __iomem *__typesafe_io(unsigned long addr)
+{
+	return (void __iomem *)addr;
+}
+
+/*
  *  I/O port access primitives.
  */
-#define IO_SPACE_LIMIT		0xffff
-#define PCI_IOBASE		((void __iomem *)(MODULES_VADDR - SZ_2M))
+#define PCI_IOBASE		((void __iomem *)(MODULES_VADDR - SZ_32M))
+#if defined(CONFIG_PCI)
+#define IO_SPACE_LIMIT  ((resource_size_t)0xffffffff)
+#define __io(a)         __typesafe_io((unsigned long)PCI_IOBASE + \
+				      ((a) & IO_SPACE_LIMIT))
+#else
+#define IO_SPACE_LIMIT	0xffff
+#define __io(a)         __typesafe_io((a) & IO_SPACE_LIMIT)
+#endif
+extern void __iomem *ioport_map(unsigned long port, unsigned int nr);
+extern void ioport_unmap(void __iomem *addr);
+extern int pci_ioremap_io(unsigned int offset, phys_addr_t phys_addr);
 
 static inline u8 inb(unsigned long addr)
 {
@@ -225,17 +261,10 @@ extern void __memset_io(volatile void __iomem *, int, size_t);
 extern void __iomem *__ioremap(phys_addr_t phys_addr, size_t size, pgprot_t prot);
 extern void __iounmap(volatile void __iomem *addr);
 
-#define PROT_DEFAULT		(PTE_TYPE_PAGE | PTE_AF | PTE_DIRTY)
-#define PROT_DEVICE_nGnRE	(PROT_DEFAULT | PTE_PXN | PTE_UXN | PTE_ATTRINDX(MT_DEVICE_nGnRE))
-#define PROT_NORMAL_NC		(PROT_DEFAULT | PTE_ATTRINDX(MT_NORMAL_NC))
-
 #define ioremap(addr, size)		__ioremap((addr), (size), __pgprot(PROT_DEVICE_nGnRE))
 #define ioremap_nocache(addr, size)	__ioremap((addr), (size), __pgprot(PROT_DEVICE_nGnRE))
 #define ioremap_wc(addr, size)		__ioremap((addr), (size), __pgprot(PROT_NORMAL_NC))
 #define iounmap				__iounmap
-
-#define PROT_SECT_DEFAULT	(PMD_TYPE_SECT | PMD_SECT_AF)
-#define PROT_SECT_DEVICE_nGnRE	(PROT_SECT_DEFAULT | PTE_PXN | PTE_UXN | PMD_ATTRINDX(MT_DEVICE_nGnRE))
 
 #define ARCH_HAS_IOREMAP_WC
 #include <asm-generic/iomap.h>
@@ -260,6 +289,14 @@ extern int devmem_is_allowed(unsigned long pfn);
  * Convert a virtual cached pointer to an uncached pointer
  */
 #define xlate_dev_kmem_ptr(p)	p
+
+/*
+ * Architecture ioremap implementation.
+ */
+#define MT_DEVICE		0
+#define MT_DEVICE_NONSHARED	1
+#define MT_DEVICE_CACHED	2
+#define MT_DEVICE_WC		3
 
 #endif	/* __KERNEL__ */
 #endif	/* __ASM_IO_H */

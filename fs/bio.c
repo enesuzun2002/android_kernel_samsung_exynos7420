@@ -535,10 +535,16 @@ void __bio_clone(struct bio *bio, struct bio *bio_src)
 	bio->bi_sector = bio_src->bi_sector;
 	bio->bi_bdev = bio_src->bi_bdev;
 	bio->bi_flags |= 1 << BIO_CLONED;
+#ifdef CONFIG_JOURNAL_DATA_TAG
+	bio->bi_flags |= bio_src->bi_flags & BIO_JOURNAL_TAG_MASK;
+#endif
 	bio->bi_rw = bio_src->bi_rw;
 	bio->bi_vcnt = bio_src->bi_vcnt;
 	bio->bi_size = bio_src->bi_size;
 	bio->bi_idx = bio_src->bi_idx;
+#if defined(CONFIG_MMC_DW_FMP_DM_CRYPT) || defined(CONFIG_UFS_FMP_DM_CRYPT)
+	bio->bi_sensitive_data = bio_src->bi_sensitive_data;
+#endif
 }
 EXPORT_SYMBOL(__bio_clone);
 

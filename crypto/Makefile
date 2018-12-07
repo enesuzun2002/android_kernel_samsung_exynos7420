@@ -2,6 +2,10 @@
 # Cryptographic API
 #
 
+#Keep this on the top
+obj-$(CONFIG_CRYPTO_FIPS) += first_file.o
+obj-$(CONFIG_CRYPTO_FIPS) += fips_integrity.o
+
 # memneq MUST be built with -Os or -O0 to prevent early-return optimizations
 # that will defeat memneq's actual purpose to prevent timing attacks.
 CFLAGS_REMOVE_memneq.o := -O1 -O2 -O3
@@ -96,6 +100,7 @@ obj-$(CONFIG_CRYPTO_842) += 842.o
 obj-$(CONFIG_CRYPTO_RNG2) += rng.o
 obj-$(CONFIG_CRYPTO_RNG2) += krng.o
 obj-$(CONFIG_CRYPTO_ANSI_CPRNG) += ansi_cprng.o
+obj-$(CONFIG_CRYPTO_DRBG) += drbg.o
 obj-$(CONFIG_CRYPTO_TEST) += tcrypt.o
 obj-$(CONFIG_CRYPTO_GHASH) += ghash-generic.o
 obj-$(CONFIG_CRYPTO_USER_API) += af_alg.o
@@ -108,3 +113,7 @@ obj-$(CONFIG_CRYPTO_USER_API_SKCIPHER) += algif_skcipher.o
 obj-$(CONFIG_XOR_BLOCKS) += xor.o
 obj-$(CONFIG_ASYNC_CORE) += async_tx/
 obj-$(CONFIG_ASYMMETRIC_KEY_TYPE) += asymmetric_keys/
+obj-$(CONFIG_CRYPTO_ABLK_HELPER) += ablk_helper.o
+
+#Keep this at the bottom
+obj-$(CONFIG_CRYPTO_FIPS) += last_file.o

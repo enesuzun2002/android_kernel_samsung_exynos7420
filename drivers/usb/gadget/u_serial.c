@@ -219,7 +219,7 @@ static unsigned gs_buf_space_avail(struct gs_buf *gb)
 static unsigned
 gs_buf_put(struct gs_buf *gb, const char *buf, unsigned count)
 {
-	unsigned len;
+	unsigned len;	/* prevent CID 11049 */
 
 	len  = gs_buf_space_avail(gb);
 	if (count > len)
@@ -230,11 +230,11 @@ gs_buf_put(struct gs_buf *gb, const char *buf, unsigned count)
 
 	len = gb->buf_buf + gb->buf_size - gb->buf_put;
 	if (count > len) {
-		memcpy(gb->buf_put, buf, len);
-		memcpy(gb->buf_buf, buf+len, count - len);
+		memcpy(gb->buf_put, buf, (size_t)len);
+		memcpy(gb->buf_buf, buf+len, (size_t)(count - len));
 		gb->buf_put = gb->buf_buf + count - len;
 	} else {
-		memcpy(gb->buf_put, buf, count);
+		memcpy(gb->buf_put, buf, (size_t)count);
 		if (count < len)
 			gb->buf_put += count;
 		else /* count == len */
@@ -255,7 +255,7 @@ gs_buf_put(struct gs_buf *gb, const char *buf, unsigned count)
 static unsigned
 gs_buf_get(struct gs_buf *gb, char *buf, unsigned count)
 {
-	unsigned len;
+	unsigned len;	/* prevent CID12927 */
 
 	len = gs_buf_data_avail(gb);
 	if (count > len)
@@ -266,11 +266,11 @@ gs_buf_get(struct gs_buf *gb, char *buf, unsigned count)
 
 	len = gb->buf_buf + gb->buf_size - gb->buf_get;
 	if (count > len) {
-		memcpy(buf, gb->buf_get, len);
-		memcpy(buf+len, gb->buf_buf, count - len);
+		memcpy(buf, gb->buf_get, (size_t)len);
+		memcpy(buf+len, gb->buf_buf, (size_t)(count - len));
 		gb->buf_get = gb->buf_buf + count - len;
 	} else {
-		memcpy(buf, gb->buf_get, count);
+		memcpy(buf, gb->buf_get, (size_t)count);
 		if (count < len)
 			gb->buf_get += count;
 		else /* count == len */
@@ -695,7 +695,11 @@ static int gs_start_io(struct gs_port *port)
 	/* queue read requests */
 	port->n_read = 0;
 	started = gs_start_rx(port);
-
+	if (!port->port_usb || !port->port.tty) {
+		printk(KERN_ERR "usb:[%s] port_usb or port_tty is NULL!! started(%d)\n",
+						__func__, started);
+		return -EIO;
+	}
 	/* unblock any pending writes into our circular buffer */
 	if (started) {
 		tty_wakeup(port->port.tty);
@@ -1126,6 +1130,7 @@ int gserial_alloc_line(unsigned char *line_num)
 
 	tty_dev = tty_port_register_device(&ports[port_num].port->port,
 			gs_tty_driver, port_num, NULL);
+
 	if (IS_ERR(tty_dev)) {
 		struct gs_port	*port;
 		pr_err("%s: failed to register tty for port %d, err %ld\n",
