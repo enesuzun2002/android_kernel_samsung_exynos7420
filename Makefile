@@ -386,7 +386,7 @@ KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
 		   -Wno-format-security \
 		   -fno-delete-null-pointer-checks \
 		   -fdiagnostics-show-option -Werror \
-		   -Ofast -Wno-maybe-uninitialized
+           -Ofast -Wno-maybe-uninitialized
 
 KBUILD_AFLAGS_KERNEL :=
 KBUILD_CFLAGS_KERNEL :=
