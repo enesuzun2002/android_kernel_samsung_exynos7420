@@ -1048,12 +1048,21 @@ static int ion_debug_client_show(struct seq_file *s, void *unused)
 		up_read(&g_idev->lock);
 		return -EINVAL;
 	}
-
-	seq_printf(s, "%16.s %16.s %4.s %16.s %4.s %10.s %8.s %9.s\n",
+	
+#ifdef CONFIG_ION_EXYNOS_STAT_LOG
+    seq_printf(s, "%16.s %16.s %4.s %16.s %4.s %10.s %8.s %9.s\n",
 			"buffer", "task", "pid", "thread", "tid", "size",
 			"# procs", "flag");
+
 	seq_printf(s, "----------------------------------------------"
 			"--------------------------------------------\n");
+#else
+	seq_printf(s, "%16.s %16.s %4.s %10.s %8.s %9.s\n",
+			"buffer", "task", "pid", "size",
+			"# procs", "flag");
+	seq_printf(s, "----------------------------------------------"
+			"---------------------\n");
+#endif
 
 	mutex_lock(&client->lock);
 	for (n = rb_first(&client->handles); n; n = rb_next(n)) {
@@ -1066,10 +1075,19 @@ static int ion_debug_client_show(struct seq_file *s, void *unused)
 			names[id] = buffer->heap->name;
 		sizes[id] += buffer->size;
 		sizes_pss[id] += (buffer->size / buffer->handle_count);
+<<<<<<< HEAD
+=======
+#ifdef CONFIG_ION_EXYNOS_STAT_LOG
+>>>>>>> 9c15b33... ion: fix build with ION_EXYNOS_STAT_LOG disabled
 		seq_printf(s, "%16p %16.s %4u %16.s %4u %10zu %8d %9lx\n",
 				buffer, buffer->task_comm, buffer->pid,
 				buffer->thread_comm, buffer->tid, buffer->size,
 				buffer->handle_count, buffer->flags);
+#else
+		seq_printf(s, "%16p %16.s %4u %10zu %8d %9lx\n",
+				buffer, buffer->task_comm, buffer->pid,
+				buffer->size, buffer->handle_count, buffer->flags);
+#endif
 	}
 	mutex_unlock(&client->lock);
 	up_read(&g_idev->lock);
