@@ -359,8 +359,7 @@ asmlinkage void decompress_kernel(void *rmode, memptr heap,
 #endif
 
 	debug_putstr("\nDecompressing Linux... ");
-	__decompress(input_data, input_len, NULL, NULL, output, output_len,
-			NULL, error);
+	decompress(input_data, input_len, NULL, NULL, output, NULL, error);
 	parse_elf(output);
 	debug_putstr("done.\nBooting the kernel.\n");
 	return;

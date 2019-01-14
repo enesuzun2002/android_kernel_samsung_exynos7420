@@ -306,9 +306,9 @@ static int exit_code;
 static int decompress_error;
 static int crd_infd, crd_outfd;
 
-static long __init compr_fill(void *buf, unsigned long len)
+static int __init compr_fill(void *buf, unsigned int len)
 {
-	long r = sys_read(crd_infd, buf, len);
+	int r = sys_read(crd_infd, buf, len);
 	if (r < 0)
 		printk(KERN_ERR "RAMDISK: error while reading compressed data");
 	else if (r == 0)
@@ -316,13 +316,13 @@ static long __init compr_fill(void *buf, unsigned long len)
 	return r;
 }
 
-static long __init compr_flush(void *window, unsigned long outcnt)
+static int __init compr_flush(void *window, unsigned int outcnt)
 {
-	long written = sys_write(crd_outfd, window, outcnt);
+	int written = sys_write(crd_outfd, window, outcnt);
 	if (written != outcnt) {
 		if (decompress_error == 0)
 			printk(KERN_ERR
-			       "RAMDISK: incomplete write (%ld != %ld)\n",
+			       "RAMDISK: incomplete write (%d != %d)\n",
 			       written, outcnt);
 		decompress_error = 1;
 		return -1;

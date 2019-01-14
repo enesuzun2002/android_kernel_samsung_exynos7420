@@ -1,10 +1,10 @@
 #ifndef INFLATE_H
 #define INFLATE_H
 
-int gunzip(unsigned char *inbuf, long len,
-	   long (*fill)(void*, unsigned long),
-	   long (*flush)(void*, unsigned long),
+int gunzip(unsigned char *inbuf, int len,
+	   int(*fill)(void*, unsigned int),
+	   int(*flush)(void*, unsigned int),
 	   unsigned char *output,
-	   long *pos,
+	   int *pos,
 	   void(*error_fn)(char *x));
 #endif
