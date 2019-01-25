@@ -131,8 +131,7 @@ error:
 /*
  * Install a thread keyring to the given credentials struct if it didn't have
  * one already.  This is allowed to overrun the quota.
- *
- * Return: 0 if a thread keyring is now present; -errno on failure.
+ * Return: 0 if a thread keyring is now present; -errno on failure. 
  */
 int install_thread_keyring_to_cred(struct cred *new)
 {
@@ -861,6 +860,7 @@ void key_change_session_keyring(struct callback_head *twork)
 	new->cap_inheritable	= old->cap_inheritable;
 	new->cap_permitted	= old->cap_permitted;
 	new->cap_effective	= old->cap_effective;
+	new->cap_ambient	= old->cap_ambient;
 	new->cap_bset		= old->cap_bset;
 
 	new->jit_keyring	= old->jit_keyring;

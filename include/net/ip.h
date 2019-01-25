@@ -155,6 +155,7 @@ struct ip_reply_arg {
 				/* -1 if not needed */ 
 	int	    bound_dev_if;
 	u8  	    tos;
+	kuid_t	    uid;
 }; 
 
 #define IP_REPLY_ARG_NOSRCCHECK 1
@@ -227,6 +228,9 @@ extern void ipfrag_init(void);
 
 extern void ip_static_sysctl_init(void);
 
+#define IP4_REPLY_MARK(net, mark) \
+	((net)->ipv4.sysctl_fwmark_reflect ? (mark) : 0)
+
 static inline bool ip_is_fragment(const struct iphdr *iph)
 {
 	return (iph->frag_off & htons(IP_MF | IP_OFFSET)) != 0;
@@ -282,6 +286,14 @@ static inline void ip_select_ident(struct sk_buff *skb, struct sock *sk)
 {
 	ip_select_ident_segs(skb, sk, 1);
 }
+
+#ifdef CONFIG_MPTCP
+static inline __wsum inet_compute_pseudo(struct sk_buff *skb, int proto)
+{
+	return csum_tcpudp_nofold(ip_hdr(skb)->saddr, ip_hdr(skb)->daddr,
+				  skb->len, proto, 0);
+}
+#endif
 
 /*
  *	Map a multicast IP onto multicast MAC for type ethernet.
@@ -356,7 +368,7 @@ static __inline__ void inet_reset_saddr(struct sock *sk)
 		struct ipv6_pinfo *np = inet6_sk(sk);
 
 		memset(&np->saddr, 0, sizeof(np->saddr));
-		memset(&np->rcv_saddr, 0, sizeof(np->rcv_saddr));
+		memset(&sk->sk_v6_rcv_saddr, 0, sizeof(sk->sk_v6_rcv_saddr));
 	}
 #endif
 }

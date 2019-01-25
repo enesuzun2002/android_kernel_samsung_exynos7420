@@ -62,6 +62,7 @@
 #include <linux/ptrace.h>
 #include <linux/sched/rt.h>
 #include <linux/hugetlb.h>
+#include <linux/freezer.h>
 
 #include <asm/futex.h>
 
@@ -1374,6 +1375,9 @@ static int futex_requeue(u32 __user *uaddr1, unsigned int flags,
 	struct plist_head *head1;
 	struct futex_q *this, *next;
 
+	if (nr_wake < 0 || nr_requeue < 0)
+		return -EINVAL;
+
 	if (requeue_pi) {
 		/*
 		 * Requeue PI only works on two distinct uaddrs. This
@@ -1935,7 +1939,7 @@ static void futex_wait_queue_me(struct futex_hash_bucket *hb, struct futex_q *q,
 		 * is no timeout, or if it has yet to expire.
 		 */
 		if (!timeout || timeout->task)
-			schedule();
+			freezable_schedule();
 	}
 	__set_current_state(TASK_RUNNING);
 }
@@ -2629,7 +2633,7 @@ SYSCALL_DEFINE3(get_robust_list, int, pid,
 	}
 
 	ret = -EPERM;
-	if (!ptrace_may_access(p, PTRACE_MODE_READ_REALCREDS))
+	if (!ptrace_may_access(p, PTRACE_MODE_READ))
 		goto err_unlock;
 
 	head = p->robust_list;

@@ -14,6 +14,7 @@
 #include <linux/platform_device.h>
 #include <linux/module.h>
 #include <linux/slab.h>
+#include <linux/usb/phy.h>
 
 #include "xhci.h"
 
@@ -30,7 +31,18 @@ static void xhci_plat_quirks(struct device *dev, struct xhci_hcd *xhci)
 /* called during probe() after chip reset completes */
 static int xhci_plat_setup(struct usb_hcd *hcd)
 {
-	return xhci_gen_setup(hcd, xhci_plat_quirks);
+	int	ret;
+
+	ret = xhci_gen_setup(hcd, xhci_plat_quirks);
+
+	/*
+	 * DWC3 WORKAROUND: xhci reset clears PHY CR port settings,
+	 * so USB3.0 PHY should be tuned again.
+	 */
+	if (!usb_hcd_is_primary_hcd(hcd) && hcd->phy)
+		usb_phy_tune(hcd->phy);
+
+	return ret;
 }
 
 static const struct hc_driver xhci_plat_xhci_driver = {
@@ -84,6 +96,7 @@ static const struct hc_driver xhci_plat_xhci_driver = {
 
 static int xhci_plat_probe(struct platform_device *pdev)
 {
+	struct device		*parent = pdev->dev.parent;
 	const struct hc_driver	*driver;
 	struct xhci_hcd		*xhci;
 	struct resource         *res;
@@ -110,6 +123,19 @@ static int xhci_plat_probe(struct platform_device *pdev)
 
 	hcd->rsrc_start = res->start;
 	hcd->rsrc_len = resource_size(res);
+
+	/*
+	 * USB2.0 PHY
+	 *
+	 * Currently xhci-plat doesn't support device tree and, in some cases
+	 * (e.g. DWC3), its device name is created using auto allocated device
+	 * ID. Therefore, we cannot use available methods to get PHY for XHCI
+	 * device. As a workaround, we try to use the PHY of XHCI parent if it
+	 * is available.
+	 */
+	if (parent)
+		hcd->phy =
+			devm_usb_get_phy_by_phandle(parent, "usb-phy", 0);
 
 	if (!request_mem_region(hcd->rsrc_start, hcd->rsrc_len,
 				driver->description)) {
@@ -138,6 +164,11 @@ static int xhci_plat_probe(struct platform_device *pdev)
 		ret = -ENOMEM;
 		goto dealloc_usb2_hcd;
 	}
+
+	/* USB3.0 PHY */
+	if (parent)
+		xhci->shared_hcd->phy =
+			devm_usb_get_phy_by_phandle(parent, "usb-phy", 1);
 
 	/*
 	 * Set the xHCI pointer before xhci_plat_setup() (aka hcd_driver.reset)
@@ -171,14 +202,25 @@ put_hcd:
 
 static int xhci_plat_remove(struct platform_device *dev)
 {
+	struct device	*parent = dev->dev.parent;
 	struct usb_hcd	*hcd = platform_get_drvdata(dev);
 	struct xhci_hcd	*xhci = hcd_to_xhci(hcd);
 
 	xhci->xhc_state |= XHCI_STATE_REMOVING;
 
 	usb_remove_hcd(xhci->shared_hcd);
-	usb_put_hcd(xhci->shared_hcd);
+	usb_phy_shutdown(hcd->phy);
 
+	/*
+	 * In usb_remove_hcd, phy_exit is called if phy is not NULL.
+	 * However, in the case that PHY was turn on or off as runtime PM,
+	 * PHY sould not exit at this time. So, to prevent the PHY exit,
+	 * PHY pointer have to be NULL.
+	 */
+	if (parent && hcd->phy)
+		hcd->phy = NULL;
+
+	usb_put_hcd(xhci->shared_hcd);
 	usb_remove_hcd(hcd);
 	iounmap(hcd->regs);
 	release_mem_region(hcd->rsrc_start, hcd->rsrc_len);

@@ -46,6 +46,7 @@
 #include <asm/virt.h>
 #include <asm/mach/arch.h>
 
+#include <mach/exynos-ss.h>
 /*
  * as from 2.5, kernels no longer have an init_tasks structure
  * so we need some other way of telling a new secondary core
@@ -57,7 +58,7 @@ struct secondary_data secondary_data;
  * control for which core is the next to come out of the secondary
  * boot "holding pen"
  */
-volatile int __cpuinitdata pen_release = -1;
+volatile int pen_release = -1;
 
 enum ipi_msg_type {
 	IPI_WAKEUP,
@@ -66,6 +67,7 @@ enum ipi_msg_type {
 	IPI_CALL_FUNC,
 	IPI_CALL_FUNC_SINGLE,
 	IPI_CPU_STOP,
+	IPI_CPU_BACKTRACE,
 };
 
 static DECLARE_COMPLETION(cpu_running);
@@ -463,6 +465,7 @@ static const char *ipi_types[NR_IPI] = {
 	S(IPI_CALL_FUNC, "Function call interrupts"),
 	S(IPI_CALL_FUNC_SINGLE, "Single function call interrupts"),
 	S(IPI_CPU_STOP, "CPU stop interrupts"),
+	S(IPI_CPU_BACKTRACE, "CPU backtrace"),
 };
 
 void show_ipi_list(struct seq_file *p, int prec)
@@ -569,7 +572,7 @@ static DEFINE_RAW_SPINLOCK(stop_lock);
 /*
  * ipi_cpu_stop - handle IPI from smp_send_stop()
  */
-static void ipi_cpu_stop(unsigned int cpu)
+static void ipi_cpu_stop(unsigned int cpu, struct pt_regs *regs)
 {
 	if (system_state == SYSTEM_BOOTING ||
 	    system_state == SYSTEM_RUNNING) {
@@ -584,8 +587,62 @@ static void ipi_cpu_stop(unsigned int cpu)
 	local_fiq_disable();
 	local_irq_disable();
 
+	exynos_ss_save_context(regs);
+
 	while (1)
 		cpu_relax();
+}
+
+static cpumask_t backtrace_mask;
+static DEFINE_RAW_SPINLOCK(backtrace_lock);
+
+/* "in progress" flag of arch_trigger_all_cpu_backtrace */
+static unsigned long backtrace_flag;
+
+void smp_send_all_cpu_backtrace(void)
+{
+	unsigned int this_cpu = smp_processor_id();
+	int i;
+
+	if (test_and_set_bit(0, &backtrace_flag))
+		/*
+		 * If there is already a trigger_all_cpu_backtrace() in progress
+		 * (backtrace_flag == 1), don't output double cpu dump infos.
+		 */
+		return;
+
+	cpumask_copy(&backtrace_mask, cpu_online_mask);
+	cpu_clear(this_cpu, backtrace_mask);
+
+	pr_info("Backtrace for cpu %d (current):\n", this_cpu);
+	dump_stack();
+
+	pr_info("\nsending IPI to all other CPUs:\n");
+	smp_cross_call(&backtrace_mask, IPI_CPU_BACKTRACE);
+
+	/* Wait for up to 10 seconds for all other CPUs to do the backtrace */
+	for (i = 0; i < 10 * 1000; i++) {
+		if (cpumask_empty(&backtrace_mask))
+			break;
+		mdelay(1);
+	}
+
+	clear_bit(0, &backtrace_flag);
+	smp_mb__after_clear_bit();
+}
+
+/*
+ * ipi_cpu_backtrace - handle IPI from smp_send_all_cpu_backtrace()
+ */
+static void ipi_cpu_backtrace(unsigned int cpu, struct pt_regs *regs)
+{
+	if (cpu_isset(cpu, backtrace_mask)) {
+		raw_spin_lock(&backtrace_lock);
+		pr_warning("IPI backtrace for cpu %d\n", cpu);
+		show_regs(regs);
+		raw_spin_unlock(&backtrace_lock);
+		cpu_clear(cpu, backtrace_mask);
+	}
 }
 
 /*
@@ -603,6 +660,8 @@ void handle_IPI(int ipinr, struct pt_regs *regs)
 
 	if (ipinr < NR_IPI)
 		__inc_irq_stat(cpu, ipi_irqs[ipinr]);
+
+	exynos_ss_irq(ipinr, do_IPI, irqs_disabled(), ESS_FLAG_IN);
 
 	switch (ipinr) {
 	case IPI_WAKEUP:
@@ -634,8 +693,12 @@ void handle_IPI(int ipinr, struct pt_regs *regs)
 
 	case IPI_CPU_STOP:
 		irq_enter();
-		ipi_cpu_stop(cpu);
+		ipi_cpu_stop(cpu, regs);
 		irq_exit();
+		break;
+
+	case IPI_CPU_BACKTRACE:
+		ipi_cpu_backtrace(cpu, regs);
 		break;
 
 	default:
@@ -643,6 +706,8 @@ void handle_IPI(int ipinr, struct pt_regs *regs)
 		       cpu, ipinr);
 		break;
 	}
+	exynos_ss_irq(ipinr, do_IPI, irqs_disabled(), ESS_FLAG_OUT);
+
 	set_irq_regs(old_regs);
 }
 
@@ -677,6 +742,52 @@ int setup_profiling_timer(unsigned int multiplier)
 {
 	return -EINVAL;
 }
+
+static void flush_all_cpu_cache(void *info)
+{
+	flush_cache_louis();
+}
+
+#ifdef CONFIG_SCHED_HMP
+
+#include <asm/cputype.h>
+
+extern struct cpumask hmp_slow_cpu_mask;
+extern struct cpumask hmp_fast_cpu_mask;
+
+static void flush_all_cluster_cache(void *info)
+{
+	flush_cache_all();
+}
+
+void flush_all_cpu_caches(void)
+{
+        unsigned int cpu, cluster, target_cpu;
+
+	preempt_disable();
+	cpu = smp_processor_id();
+	cluster = MPIDR_AFFINITY_LEVEL(cpu_logical_map(cpu), 1);
+
+	if (!cluster)
+		target_cpu = first_cpu(hmp_slow_cpu_mask);
+	else
+		target_cpu = first_cpu(hmp_fast_cpu_mask);
+
+	smp_call_function(flush_all_cpu_cache, NULL, 1);
+	smp_call_function_single(target_cpu, flush_all_cluster_cache, NULL, 1);
+	flush_cache_all();
+
+	preempt_enable();
+}
+#else
+void flush_all_cpu_caches(void)
+{
+	preempt_disable();
+	smp_call_function(flush_all_cpu_cache, NULL, 1);
+	flush_cache_all();
+	preempt_enable();
+}
+#endif
 
 #ifdef CONFIG_CPU_FREQ
 

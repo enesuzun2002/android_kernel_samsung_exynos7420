@@ -9,8 +9,13 @@
 #include <asm/memory.h>
 #include <asm/page.h>
 
+#if (defined(CONFIG_GENERIC_BUG))
+#define ARM_EXIT_KEEP(x)        x
+#define ARM_EXIT_DISCARD(x)
+#else
 #define ARM_EXIT_KEEP(x)
 #define ARM_EXIT_DISCARD(x)	x
+#endif
 
 OUTPUT_ARCH(aarch64)
 ENTRY(stext)
@@ -41,7 +46,6 @@ SECTIONS
 	}
 	.text : {			/* Real text segment		*/
 		_stext = .;		/* Text and read-only data	*/
-			*(.smp.pen.text)
 			__exception_text_start = .;
 			*(.exception.text)
 			__exception_text_end = .;
@@ -56,12 +60,40 @@ SECTIONS
 	}
 
 	RO_DATA(PAGE_SIZE)
-
+	EXCEPTION_TABLE(8)
+	NOTES
+#ifdef CONFIG_TIMA_RKP
+	. = ALIGN(PAGE_SIZE);
+	.rkp.bitmap : {
+		rkp_pgt_bitmap = .;
+		. = rkp_pgt_bitmap + 0x20000;
+	}
+	.rkp.dblmap : {
+		rkp_map_bitmap = .;
+		. = rkp_map_bitmap + 0x20000;
+	}
+#ifdef CONFIG_RKP_KDP
+	 /* Creating a new section to store task credentials */
+	. = ALIGN(PAGE_SIZE);
+	.rkp.prot.page : {
+		__rkp_ro_start = .;
+	}
+	. = ALIGN(PAGE_SIZE);
+	. = ALIGN(1 << 21);
+#endif /* CONFIG_RKP_KDP*/
+#endif
 	_etext = .;			/* End of text and rodata section */
 
 	. = ALIGN(PAGE_SIZE);
 	__init_begin = .;
-
+	.init.arch.info : {
+		__arch_info_begin = .;
+		*(.arch.info.init)
+		__arch_info_end = .;
+	}
+#ifdef CONFIG_TIMA_RKP
+	.vmm : { *(.vmm*) }
+#endif
 	INIT_TEXT_SECTION(8)
 	.exit.text : {
 		ARM_EXIT_KEEP(EXIT_TEXT)
@@ -82,41 +114,12 @@ SECTIONS
 	PERCPU_SECTION(64)
 
 	__init_end = .;
-	. = ALIGN(THREAD_SIZE);
-	__data_loc = .;
 
-	.data : AT(__data_loc) {
-		_data = .;		/* address in memory */
-		_sdata = .;
-
-		/*
-		 * first, the init task union, aligned
-		 * to an 8192 byte boundary.
-		 */
-		INIT_TASK_DATA(THREAD_SIZE)
-		NOSAVE_DATA
-		CACHELINE_ALIGNED_DATA(64)
-		READ_MOSTLY_DATA(64)
-
-		/*
-		 * The exception fixup table (might need resorting at runtime)
-		 */
-		. = ALIGN(32);
-		__start___ex_table = .;
-		*(__ex_table)
-		__stop___ex_table = .;
-
-		/*
-		 * and the usual data section
-		 */
-		DATA_DATA
-		CONSTRUCTORS
-
-		_edata = .;
-	}
-	_edata_loc = __data_loc + SIZEOF(.data);
-
-	NOTES
+	. = ALIGN(PAGE_SIZE);
+	_data = .;
+	_sdata = .;
+	RW_DATA_SECTION(64, PAGE_SIZE, THREAD_SIZE)
+	_edata = .;
 
 	BSS_SECTION(0, 0, 0)
 	_end = .;

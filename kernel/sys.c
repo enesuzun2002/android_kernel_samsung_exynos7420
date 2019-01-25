@@ -42,6 +42,9 @@
 #include <linux/syscore_ops.h>
 #include <linux/version.h>
 #include <linux/ctype.h>
+#include <linux/mm.h>
+#include <linux/mempolicy.h>
+#include <linux/sched.h>
 
 #include <linux/compat.h>
 #include <linux/syscalls.h>
@@ -122,6 +125,56 @@ EXPORT_SYMBOL(fs_overflowgid);
 int C_A_D = 1;
 struct pid *cad_pid;
 EXPORT_SYMBOL(cad_pid);
+
+int ignore_fs_panic = 0; // To prevent kernel panic by EIO during shutdown
+
+#if defined CONFIG_SEC_RESTRICT_SETUID
+int sec_check_execpath(struct mm_struct *mm, char *denypath);
+#if defined CONFIG_SEC_RESTRICT_ROOTING_LOG
+#define PRINT_LOG(...)	printk(KERN_ERR __VA_ARGS__)
+#else
+#define PRINT_LOG(...)
+#endif	// End of CONFIG_SEC_RESTRICT_ROOTING_LOG
+
+static int sec_restrict_uid(void)
+{
+	int ret = 0;
+	struct task_struct *parent_tsk;
+	const struct cred *parent_cred;
+
+	read_lock(&tasklist_lock);
+	parent_tsk = current->parent;
+	if (!parent_tsk) {
+		read_unlock(&tasklist_lock);
+		return 0;
+	}
+
+	get_task_struct(parent_tsk);
+	/* holding on to the task struct is enough so just release
+	 * the tasklist lock here */
+	read_unlock(&tasklist_lock);
+
+	parent_cred = get_task_cred(parent_tsk);
+	if (!parent_cred)
+		goto out;
+	if (parent_cred->euid == 0 || parent_tsk->pid == 1) {
+		ret = 0;
+	} else if (sec_check_execpath(current->mm, "/system/bin/pppd")) {
+		PRINT_LOG("VPN allowed to use root permission");
+		ret = 0;
+	} else {
+		PRINT_LOG("Restricted changing UID. PID = %d(%s) PPID = %d(%s)\n",
+			current->pid, current->comm,
+			parent_tsk->pid, parent_tsk->comm);
+		ret = 1;
+	}
+	put_cred(parent_cred);
+out:
+	put_task_struct(parent_tsk);
+
+	return ret;
+}
+#endif // End of CONFIG_SEC_RESTRICT_SETUID
 
 /*
  * If set, this is used for preparing the system to power off.
@@ -327,7 +380,12 @@ void kernel_restart_prepare(char *cmd)
 {
 	blocking_notifier_call_chain(&reboot_notifier_list, SYS_RESTART, cmd);
 	system_state = SYSTEM_RESTART;
+
+	/* P150615-05396 : user process freeze before device shutdown */
+	events_check_enabled = false;
+	freeze_processes();
 	usermodehelper_disable();
+	ignore_fs_panic = 1;
 	device_shutdown();
 }
 
@@ -412,7 +470,12 @@ static void kernel_shutdown_prepare(enum system_states state)
 	blocking_notifier_call_chain(&reboot_notifier_list,
 		(state == SYSTEM_HALT)?SYS_HALT:SYS_POWER_OFF, NULL);
 	system_state = state;
+
+	/* P150615-05396 : user process freeze before device shutdown */
+	events_check_enabled = false;
+	freeze_processes();
 	usermodehelper_disable();
+	ignore_fs_panic = 1;
 	device_shutdown();
 }
 /**
@@ -439,6 +502,7 @@ EXPORT_SYMBOL_GPL(kernel_halt);
  */
 void kernel_power_off(void)
 {
+	printk(KERN_INFO "MDM_LOG - Kernel poweroff\n");
 	kernel_shutdown_prepare(SYSTEM_POWER_OFF);
 	if (pm_power_off_prepare)
 		pm_power_off_prepare();
@@ -509,9 +573,11 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
 		break;
 
 	case LINUX_REBOOT_CMD_HALT:
-		kernel_halt();
+/*		kernel_halt();
 		do_exit(0);
-		panic("cannot halt");
+		panic("cannot halt");	*/
+		kernel_restart(NULL);
+		break;
 
 	case LINUX_REBOOT_CMD_POWER_OFF:
 		kernel_power_off();
@@ -594,6 +660,14 @@ SYSCALL_DEFINE2(setregid, gid_t, rgid, gid_t, egid)
 	int retval;
 	kgid_t krgid, kegid;
 
+#if defined CONFIG_SEC_RESTRICT_SETUID
+	if(rgid == 0 || egid == 0)
+	{
+		if(sec_restrict_uid())
+			return -EACCES;
+	}
+#endif // End of CONFIG_SEC_RESTRICT_SETUID
+
 	krgid = make_kgid(ns, rgid);
 	kegid = make_kgid(ns, egid);
 
@@ -650,6 +724,14 @@ SYSCALL_DEFINE1(setgid, gid_t, gid)
 	struct cred *new;
 	int retval;
 	kgid_t kgid;
+
+#if defined CONFIG_SEC_RESTRICT_SETUID
+	if(gid == 0)
+	{
+		if(sec_restrict_uid())
+			return -EACCES;
+	}
+#endif // End of CONFIG_SEC_RESTRICT_SETUID
 
 	kgid = make_kgid(ns, gid);
 	if (!gid_valid(kgid))
@@ -727,6 +809,15 @@ SYSCALL_DEFINE2(setreuid, uid_t, ruid, uid_t, euid)
 	int retval;
 	kuid_t kruid, keuid;
 
+#if defined CONFIG_SEC_RESTRICT_SETUID
+	if(ruid == 0 || euid == 0)
+	{
+		if(sec_restrict_uid())
+			return -EACCES;
+	}
+#endif // End of CONFIG_SEC_RESTRICT_SETUID
+
+
 	kruid = make_kuid(ns, ruid);
 	keuid = make_kuid(ns, euid);
 
@@ -798,6 +889,14 @@ SYSCALL_DEFINE1(setuid, uid_t, uid)
 	int retval;
 	kuid_t kuid;
 
+#if defined CONFIG_SEC_RESTRICT_SETUID
+	if(uid == 0)
+	{
+		if(sec_restrict_uid())
+			return -EACCES;
+	}
+#endif // End of CONFIG_SEC_RESTRICT_SETUID
+
 	kuid = make_kuid(ns, uid);
 	if (!uid_valid(kuid))
 		return -EINVAL;
@@ -844,6 +943,14 @@ SYSCALL_DEFINE3(setresuid, uid_t, ruid, uid_t, euid, uid_t, suid)
 	struct cred *new;
 	int retval;
 	kuid_t kruid, keuid, ksuid;
+
+#if defined CONFIG_SEC_RESTRICT_SETUID
+	if(ruid == 0 || euid == 0 || suid == 0)
+	{
+		if(sec_restrict_uid())
+			return -EACCES;
+	}
+#endif // End of CONFIG_SEC_RESTRICT_SETUID
 
 	kruid = make_kuid(ns, ruid);
 	keuid = make_kuid(ns, euid);
@@ -929,6 +1036,14 @@ SYSCALL_DEFINE3(setresgid, gid_t, rgid, gid_t, egid, gid_t, sgid)
 	struct cred *new;
 	int retval;
 	kgid_t krgid, kegid, ksgid;
+
+#if defined CONFIG_SEC_RESTRICT_SETUID
+	if(rgid == 0 || egid == 0 || sgid == 0)
+	{
+		if(sec_restrict_uid())
+			return -EACCES;
+	}
+#endif // End of CONFIG_SEC_RESTRICT_SETUID
 
 	krgid = make_kgid(ns, rgid);
 	kegid = make_kgid(ns, egid);
@@ -2099,10 +2214,158 @@ static int prctl_get_tid_address(struct task_struct *me, int __user **tid_addr)
 }
 #endif
 
+#ifdef CONFIG_MMU
+static int prctl_update_vma_anon_name(struct vm_area_struct *vma,
+		struct vm_area_struct **prev,
+		unsigned long start, unsigned long end,
+		const char __user *name_addr)
+{
+	struct mm_struct * mm = vma->vm_mm;
+	int error = 0;
+	pgoff_t pgoff;
+
+	if (name_addr == vma_get_anon_name(vma)) {
+		*prev = vma;
+		goto out;
+	}
+
+	pgoff = vma->vm_pgoff + ((start - vma->vm_start) >> PAGE_SHIFT);
+	*prev = vma_merge(mm, *prev, start, end, vma->vm_flags, vma->anon_vma,
+				vma->vm_file, pgoff, vma_policy(vma),
+				name_addr);
+	if (*prev) {
+		vma = *prev;
+		goto success;
+	}
+
+	*prev = vma;
+
+	if (start != vma->vm_start) {
+		error = split_vma(mm, vma, start, 1);
+		if (error)
+			goto out;
+	}
+
+	if (end != vma->vm_end) {
+		error = split_vma(mm, vma, end, 0);
+		if (error)
+			goto out;
+	}
+
+success:
+	if (!vma->vm_file)
+		vma->shared.anon_name = name_addr;
+
+out:
+	if (error == -ENOMEM)
+		error = -EAGAIN;
+	return error;
+}
+
+static int prctl_set_vma_anon_name(unsigned long start, unsigned long end,
+			unsigned long arg)
+{
+	unsigned long tmp;
+	struct vm_area_struct * vma, *prev;
+	int unmapped_error = 0;
+	int error = -EINVAL;
+
+	/*
+	 * If the interval [start,end) covers some unmapped address
+	 * ranges, just ignore them, but return -ENOMEM at the end.
+	 * - this matches the handling in madvise.
+	 */
+	vma = find_vma_prev(current->mm, start, &prev);
+	if (vma && start > vma->vm_start)
+		prev = vma;
+
+	for (;;) {
+		/* Still start < end. */
+		error = -ENOMEM;
+		if (!vma)
+			return error;
+
+		/* Here start < (end|vma->vm_end). */
+		if (start < vma->vm_start) {
+			unmapped_error = -ENOMEM;
+			start = vma->vm_start;
+			if (start >= end)
+				return error;
+		}
+
+		/* Here vma->vm_start <= start < (end|vma->vm_end) */
+		tmp = vma->vm_end;
+		if (end < tmp)
+			tmp = end;
+
+		/* Here vma->vm_start <= start < tmp <= (end|vma->vm_end). */
+		error = prctl_update_vma_anon_name(vma, &prev, start, tmp,
+				(const char __user *)arg);
+		if (error)
+			return error;
+		start = tmp;
+		if (prev && start < prev->vm_end)
+			start = prev->vm_end;
+		error = unmapped_error;
+		if (start >= end)
+			return error;
+		if (prev)
+			vma = prev->vm_next;
+		else	/* madvise_remove dropped mmap_sem */
+			vma = find_vma(current->mm, start);
+	}
+}
+
+static int prctl_set_vma(unsigned long opt, unsigned long start,
+		unsigned long len_in, unsigned long arg)
+{
+	struct mm_struct *mm = current->mm;
+	int error;
+	unsigned long len;
+	unsigned long end;
+
+	if (start & ~PAGE_MASK)
+		return -EINVAL;
+	len = (len_in + ~PAGE_MASK) & PAGE_MASK;
+
+	/* Check to see whether len was rounded up from small -ve to zero */
+	if (len_in && !len)
+		return -EINVAL;
+
+	end = start + len;
+	if (end < start)
+		return -EINVAL;
+
+	if (end == start)
+		return 0;
+
+	down_write(&mm->mmap_sem);
+
+	switch (opt) {
+	case PR_SET_VMA_ANON_NAME:
+		error = prctl_set_vma_anon_name(start, end, arg);
+		break;
+	default:
+		error = -EINVAL;
+	}
+
+	up_write(&mm->mmap_sem);
+
+	return error;
+}
+#else /* CONFIG_MMU */
+static int prctl_set_vma(unsigned long opt, unsigned long start,
+		unsigned long len_in, unsigned long arg)
+{
+	return -EINVAL;
+}
+#endif
+
 SYSCALL_DEFINE5(prctl, int, option, unsigned long, arg2, unsigned long, arg3,
 		unsigned long, arg4, unsigned long, arg5)
 {
 	struct task_struct *me = current;
+	struct task_struct *tsk;
 	unsigned char comm[sizeof(me->comm)];
 	long error;
 
@@ -2226,6 +2489,26 @@ SYSCALL_DEFINE5(prctl, int, option, unsigned long, arg2, unsigned long, arg3,
 			else
 				return -EINVAL;
 			break;
+		case PR_SET_TIMERSLACK_PID:
+			if (current->pid != (pid_t)arg3 &&
+					!capable(CAP_SYS_NICE))
+				return -EPERM;
+			rcu_read_lock();
+			tsk = find_task_by_pid_ns((pid_t)arg3, &init_pid_ns);
+			if (tsk == NULL) {
+				rcu_read_unlock();
+				return -EINVAL;
+			}
+			get_task_struct(tsk);
+			rcu_read_unlock();
+			if (arg2 <= 0)
+				tsk->timer_slack_ns =
+					tsk->default_timer_slack_ns;
+			else
+				tsk->timer_slack_ns = arg2;
+			put_task_struct(tsk);
+			error = 0;
+			break;
 		default:
 			return -EINVAL;
 		}
@@ -2256,12 +2539,15 @@ SYSCALL_DEFINE5(prctl, int, option, unsigned long, arg2, unsigned long, arg3,
 		if (arg2 != 1 || arg3 || arg4 || arg5)
 			return -EINVAL;
 
-		current->no_new_privs = 1;
+		task_set_no_new_privs(current);
 		break;
 	case PR_GET_NO_NEW_PRIVS:
 		if (arg2 || arg3 || arg4 || arg5)
 			return -EINVAL;
-		return current->no_new_privs ? 1 : 0;
+		return task_no_new_privs(current) ? 1 : 0;
+	case PR_SET_VMA:
+		error = prctl_set_vma(arg2, arg3, arg4, arg5);
+		break;
 	default:
 		error = -EINVAL;
 		break;

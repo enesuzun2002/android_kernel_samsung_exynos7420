@@ -58,6 +58,11 @@ struct inet_hashinfo;
 # define INET_TWDR_RECYCLE_TICK (12 + 2 - INET_TWDR_RECYCLE_SLOTS_LOG)
 #endif
 
+static inline u32 inet_tw_time_stamp(void)
+{
+	return jiffies;
+}
+
 /* TIME_WAIT reaping mechanism. */
 #define INET_TWDR_TWKILL_SLOTS	8 /* Please keep this a power of 2. */
 
@@ -111,11 +116,11 @@ struct inet_timewait_sock {
 #define tw_prot			__tw_common.skc_prot
 #define tw_net			__tw_common.skc_net
 #define tw_daddr        	__tw_common.skc_daddr
+#define tw_v6_daddr		__tw_common.skc_v6_daddr
 #define tw_rcv_saddr    	__tw_common.skc_rcv_saddr
-#define tw_addrpair		__tw_common.skc_addrpair
+#define tw_v6_rcv_saddr    	__tw_common.skc_v6_rcv_saddr
 #define tw_dport		__tw_common.skc_dport
 #define tw_num			__tw_common.skc_num
-#define tw_portpair		__tw_common.skc_portpair
 
 	int			tw_timeout;
 	volatile unsigned char	tw_substate;
@@ -128,27 +133,15 @@ struct inet_timewait_sock {
 	/* And these are ours. */
 	unsigned int		tw_ipv6only     : 1,
 				tw_transparent  : 1,
-				tw_pad		: 6,	/* 6 bits hole */
-				tw_tos		: 8,
-				tw_ipv6_offset  : 16;
+				tw_flowlabel	: 20,
+				tw_pad		: 2,	/* 2 bits hole */
+				tw_tos		: 8;
 	kmemcheck_bitfield_end(flags);
-	unsigned long		tw_ttd;
+	u32			tw_ttd;
 	struct inet_bind_bucket	*tw_tb;
 	struct hlist_node	tw_death_node;
 };
 #define tw_tclass tw_tos
-
-static inline void inet_twsk_add_node_rcu(struct inet_timewait_sock *tw,
-				      struct hlist_nulls_head *list)
-{
-	hlist_nulls_add_head_rcu(&tw->tw_node, list);
-}
-
-static inline void inet_twsk_add_bind_node(struct inet_timewait_sock *tw,
-					   struct hlist_head *list)
-{
-	hlist_add_head(&tw->tw_bind_node, list);
-}
 
 static inline int inet_twsk_dead_hashed(const struct inet_timewait_sock *tw)
 {
@@ -189,12 +182,7 @@ static inline struct inet_timewait_sock *inet_twsk(const struct sock *sk)
 	return (struct inet_timewait_sock *)sk;
 }
 
-static inline __be32 sk_rcv_saddr(const struct sock *sk)
-{
-/* both inet_sk() and inet_twsk() store rcv_saddr in skc_rcv_saddr */
-	return sk->__sk_common.skc_rcv_saddr;
-}
-
+void inet_twsk_free(struct inet_timewait_sock *tw);
 extern void inet_twsk_put(struct inet_timewait_sock *tw);
 
 extern int inet_twsk_unhash(struct inet_timewait_sock *tw);

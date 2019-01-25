@@ -91,34 +91,57 @@ extern int of_flat_dt_is_compatible(unsigned long node, const char *name);
 extern int of_flat_dt_match(unsigned long node, const char *const *matches);
 extern unsigned long of_get_flat_dt_root(void);
 
+/*
+ * early_init_dt_scan_chosen - scan the device tree for ramdisk and bootargs
+ *
+ * The boot arguments will be placed into the memory pointed to by @data.
+ * That memory should be COMMAND_LINE_SIZE big and initialized to be a valid
+ * (possibly empty) string.  Logic for what will be in @data after this
+ * function finishes:
+ *
+ * - CONFIG_CMDLINE_FORCE=true
+ *     CONFIG_CMDLINE
+ * - CONFIG_CMDLINE_EXTEND=true, @data is non-empty string
+ *     @data + dt bootargs (even if dt bootargs are empty)
+ * - CONFIG_CMDLINE_EXTEND=true, @data is empty string
+ *     CONFIG_CMDLINE + dt bootargs (even if dt bootargs are empty)
+ * - CMDLINE_FROM_BOOTLOADER=true, dt bootargs=non-empty:
+ *     dt bootargs
+ * - CMDLINE_FROM_BOOTLOADER=true, dt bootargs=empty, @data is non-empty string
+ *     @data is left unchanged
+ * - CMDLINE_FROM_BOOTLOADER=true, dt bootargs=empty, @data is empty string
+ *     CONFIG_CMDLINE (or "" if that's not defined)
+ */
 extern int early_init_dt_scan_chosen(unsigned long node, const char *uname,
 				     int depth, void *data);
-extern void early_init_dt_check_for_initrd(unsigned long node);
 extern int early_init_dt_scan_memory(unsigned long node, const char *uname,
 				     int depth, void *data);
+extern void early_init_fdt_scan_reserved_mem(void);
 extern void early_init_dt_add_memory_arch(u64 base, u64 size);
+extern int early_init_dt_reserve_memory_arch(phys_addr_t base, phys_addr_t size,
+					     bool no_map);
 extern void * early_init_dt_alloc_memory_arch(u64 size, u64 align);
 extern u64 dt_mem_next_cell(int s, __be32 **cellp);
-
-/*
- * If BLK_DEV_INITRD, the fdt early init code will call this function,
- * to be provided by the arch code. start and end are specified as
- * physical addresses.
- */
-#ifdef CONFIG_BLK_DEV_INITRD
-extern void early_init_dt_setup_initrd_arch(unsigned long start,
-					    unsigned long end);
-#endif
 
 /* Early flat tree scan hooks */
 extern int early_init_dt_scan_root(unsigned long node, const char *uname,
 				   int depth, void *data);
 
+extern bool early_init_dt_scan(void *params);
+
+extern const char *of_flat_dt_get_machine_name(void);
+extern const void *of_flat_dt_match_machine(const void *default_match,
+		const void * (*get_next_compat)(const char * const**));
+
 /* Other Prototypes */
 extern void unflatten_device_tree(void);
+extern void unflatten_and_copy_device_tree(void);
 extern void early_init_devtree(void *);
 #else /* CONFIG_OF_FLATTREE */
+static inline void early_init_fdt_scan_reserved_mem(void) {}
+static inline const char *of_flat_dt_get_machine_name(void) { return NULL; }
 static inline void unflatten_device_tree(void) {}
+static inline void unflatten_and_copy_device_tree(void) {}
 #endif /* CONFIG_OF_FLATTREE */
 
 #endif /* __ASSEMBLY__ */

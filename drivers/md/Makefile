@@ -1,7 +1,16 @@
 #
 # Makefile for the kernel software RAID and LVM drivers.
 #
-
+ifeq ($(SEC_BUILD_CONF_PERF_DMVERITY),true)
+EXTRA_CFLAGS += -DVERITY_PERF=true
+endif
+ifeq ($(SEC_BUILD_CONF_DMV_ALTA),true)
+EXTRA_CFLAGS += -DDMV_ALTA=true
+EXTRA_CFLAGS += -DDMV_ALTA_PROF=true
+endif
+ifeq ($(SEC_BUILD_CONF_QUICK_DMVERITY),true)
+EXTRA_CFLAGS += -DVERIFY_META_ONLY=true
+endif
 dm-mod-y	+= dm.o dm-table.o dm-target.o dm-linear.o dm-stripe.o \
 		   dm-ioctl.o dm-io.o dm-kcopyd.o dm-sysfs.o
 dm-multipath-y	+= dm-path-selector.o dm-mpath.o
@@ -49,6 +58,7 @@ obj-$(CONFIG_DM_ZERO)		+= dm-zero.o
 obj-$(CONFIG_DM_RAID)	+= dm-raid.o
 obj-$(CONFIG_DM_THIN_PROVISIONING)	+= dm-thin-pool.o
 obj-$(CONFIG_DM_VERITY)		+= dm-verity.o
+obj-$(CONFIG_DM_VERITY)		+= dm-dirty.o
 obj-$(CONFIG_DM_CACHE)		+= dm-cache.o
 obj-$(CONFIG_DM_CACHE_MQ)	+= dm-cache-mq.o
 obj-$(CONFIG_DM_CACHE_CLEANER)	+= dm-cache-cleaner.o

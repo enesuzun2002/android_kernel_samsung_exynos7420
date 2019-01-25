@@ -36,6 +36,10 @@
 #include <asm/pgtable.h>
 #include <asm/tlbflush.h>
 
+#ifdef CONFIG_SEC_DEBUG
+#include <linux/sec_debug.h>
+#endif
+
 static const char *fault_name(unsigned int esr);
 
 /*
@@ -130,7 +134,7 @@ static void __do_user_fault(struct task_struct *tsk, unsigned long addr,
 	force_sig_info(sig, &si, tsk);
 }
 
-void do_bad_area(unsigned long addr, unsigned int esr, struct pt_regs *regs)
+static void do_bad_area(unsigned long addr, unsigned int esr, struct pt_regs *regs)
 {
 	struct task_struct *tsk = current;
 	struct mm_struct *mm = tsk->active_mm;
@@ -198,6 +202,15 @@ static int __kprobes do_page_fault(unsigned long addr, unsigned int esr,
 	int fault, sig, code;
 	unsigned long vm_flags = VM_READ | VM_WRITE | VM_EXEC;
 	unsigned int mm_flags = FAULT_FLAG_ALLOW_RETRY | FAULT_FLAG_KILLABLE;
+
+#ifdef CONFIG_SEC_DEBUG
+	/* We may have invalid 'current' due to stack overflow */
+	if (!virt_addr_valid(current_thread_info()) || !virt_addr_valid(current)) {
+		sec_debug_disable_printk_process();
+		pr_emerg("sec_debug: safe panic handler due to invalid 'current' \n");
+		sec_debug_panic_handler("sec_debug: safe panic handler", false);
+	}
+#endif
 
 	tsk = current;
 	mm  = tsk->mm;
@@ -363,17 +376,6 @@ static int __kprobes do_translation_fault(unsigned long addr,
 }
 
 /*
- * Some section permission faults need to be handled gracefully.  They can
- * happen due to a __{get,put}_user during an oops.
- */
-static int do_sect_fault(unsigned long addr, unsigned int esr,
-			 struct pt_regs *regs)
-{
-	do_bad_area(addr, esr, regs);
-	return 0;
-}
-
-/*
  * This abort handler always returns "fault".
  */
 static int do_bad(unsigned long addr, unsigned int esr, struct pt_regs *regs)
@@ -396,12 +398,12 @@ static struct fault_info {
 	{ do_translation_fault,	SIGSEGV, SEGV_MAPERR,	"level 2 translation fault"	},
 	{ do_page_fault,	SIGSEGV, SEGV_MAPERR,	"level 3 translation fault"	},
 	{ do_bad,		SIGBUS,  0,		"reserved access flag fault"	},
-	{ do_bad,		SIGSEGV, SEGV_ACCERR,	"level 1 access flag fault"	},
-	{ do_bad,		SIGSEGV, SEGV_ACCERR,	"level 2 access flag fault"	},
+	{ do_page_fault,	SIGSEGV, SEGV_ACCERR,	"level 1 access flag fault"	},
+	{ do_page_fault,	SIGSEGV, SEGV_ACCERR,	"level 2 access flag fault"	},
 	{ do_page_fault,	SIGSEGV, SEGV_ACCERR,	"level 3 access flag fault"	},
 	{ do_bad,		SIGBUS,  0,		"reserved permission fault"	},
-	{ do_bad,		SIGSEGV, SEGV_ACCERR,	"level 1 permission fault"	},
-	{ do_sect_fault,	SIGSEGV, SEGV_ACCERR,	"level 2 permission fault"	},
+	{ do_page_fault,	SIGSEGV, SEGV_ACCERR,	"level 1 permission fault"	},
+	{ do_page_fault,	SIGSEGV, SEGV_ACCERR,	"level 2 permission fault"	},
 	{ do_page_fault,	SIGSEGV, SEGV_ACCERR,	"level 3 permission fault"	},
 	{ do_bad,		SIGBUS,  0,		"synchronous external abort"	},
 	{ do_bad,		SIGBUS,  0,		"asynchronous external abort"	},
@@ -471,8 +473,11 @@ asmlinkage void __exception do_mem_abort(unsigned long addr, unsigned int esr,
 	if (!inf->fn(addr, esr, regs))
 		return;
 
-	pr_alert("Unhandled fault: %s (0x%08x) at 0x%016lx\n",
-		 inf->name, esr, addr);
+	if (show_unhandled_signals && unhandled_signal(current, inf->sig) &&
+	    printk_ratelimit()) {
+		pr_alert("Unhandled fault: %s (0x%08x) at 0x%016lx\n",
+			 inf->name, esr, addr);
+	}
 
 	info.si_signo = inf->sig;
 	info.si_errno = 0;
@@ -530,8 +535,11 @@ asmlinkage int __exception do_debug_exception(unsigned long addr,
 	if (!inf->fn(addr, esr, regs))
 		return 1;
 
-	pr_alert("Unhandled debug exception: %s (0x%08x) at 0x%016lx\n",
-		 inf->name, esr, addr);
+	if (show_unhandled_signals && unhandled_signal(current, inf->sig) &&
+	    printk_ratelimit()) {
+		pr_alert("Unhandled debug exception: %s (0x%08x) at 0x%016lx\n",
+			 inf->name, esr, addr);
+	}
 
 	info.si_signo = inf->sig;
 	info.si_errno = 0;

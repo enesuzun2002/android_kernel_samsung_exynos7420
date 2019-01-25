@@ -4054,6 +4054,9 @@ static void net_rps_action_and_irq_enable(struct softnet_data *sd)
 			if (cpu_online(remsd->cpu))
 				__smp_call_function_single(remsd->cpu,
 							   &remsd->csd, 0);
+			else
+				clear_bit(NAPI_STATE_SCHED, &remsd->backlog.state);
+
 			remsd = next;
 		}
 	} else
@@ -4734,7 +4737,11 @@ int __dev_change_flags(struct net_device *dev, unsigned int flags)
 
 	dev->flags = (flags & (IFF_DEBUG | IFF_NOTRAILERS | IFF_NOARP |
 			       IFF_DYNAMIC | IFF_MULTICAST | IFF_PORTSEL |
-			       IFF_AUTOMEDIA)) |
+			       IFF_AUTOMEDIA
+#ifdef CONFIG_MPTCP
+				   | IFF_NOMULTIPATH | IFF_MPBACKUP
+#endif
+				   )) |
 		     (dev->flags & (IFF_UP | IFF_VOLATILE | IFF_PROMISC |
 				    IFF_ALLMULTI));
 

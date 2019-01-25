@@ -51,7 +51,8 @@ extern int __inode_permission(struct inode *, int);
  */
 extern int copy_mount_options(const void __user *, unsigned long *);
 extern int copy_mount_string(const void __user *, char **);
-
+extern int vfs_path_lookup(struct dentry *, struct vfsmount *,
+		   const char *, unsigned int, struct path *);
 extern struct vfsmount *lookup_mnt(struct path *);
 extern int finish_automount(struct vfsmount *, struct path *);
 
@@ -80,9 +81,11 @@ extern struct file *get_empty_filp(void);
  * super.c
  */
 extern int do_remount_sb(struct super_block *, int, void *, int);
+extern int do_remount_sb2(struct vfsmount *, struct super_block *, int,
+								void *, int);
 extern bool grab_super_passive(struct super_block *sb);
 extern struct dentry *mount_fs(struct file_system_type *,
-			       int, const char *, void *);
+			       int, const char *, struct vfsmount *, void *);
 extern struct super_block *user_get_super(dev_t);
 
 /*

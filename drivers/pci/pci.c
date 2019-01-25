@@ -498,6 +498,7 @@ static inline int platform_pci_run_wake(struct pci_dev *dev, bool enable)
  * 0 if device already is in the requested state.
  * 0 if device's power state has been successfully changed.
  */
+extern int exynos_pcie_dump_link_down_status(int ch_num);
 static int pci_raw_set_power_state(struct pci_dev *dev, pci_power_t state)
 {
 	u16 pmcsr;
@@ -566,9 +567,14 @@ static int pci_raw_set_power_state(struct pci_dev *dev, pci_power_t state)
 
 	pci_read_config_word(dev, dev->pm_cap + PCI_PM_CTRL, &pmcsr);
 	dev->current_state = (pmcsr & PCI_PM_CTRL_STATE_MASK);
-	if (dev->current_state != state && printk_ratelimit())
+	if (dev->current_state != state && printk_ratelimit()) {
 		dev_info(&dev->dev, "Refused to change power state, "
-			"currently in D%d\n", dev->current_state);
+			"currently in D%d, PCI_PM_CTRL=%x\n",
+			dev->current_state, (u32)pmcsr);
+
+		if (dev->vendor == 0x14E4)
+			exynos_pcie_dump_link_down_status(1);
+	}
 
 	/*
 	 * According to section 5.4.1 of the "PCI BUS POWER MANAGEMENT
@@ -942,6 +948,7 @@ pci_save_state(struct pci_dev *dev)
 	/* XXX: 100% dword access ok here? */
 	for (i = 0; i < 16; i++)
 		pci_read_config_dword(dev, i * 4, &dev->saved_config_space[i]);
+
 	dev->state_saved = true;
 	if ((i = pci_save_pcie_state(dev)) != 0)
 		return i;
@@ -990,7 +997,10 @@ static void pci_restore_config_space(struct pci_dev *pdev)
 	if (pdev->hdr_type == PCI_HEADER_TYPE_NORMAL) {
 		pci_restore_config_space_range(pdev, 10, 15, 0);
 		/* Restore BARs before the command register. */
-		pci_restore_config_space_range(pdev, 4, 9, 10);
+		if(pdev->vendor == 0x17cb && pdev->device == 0x300)
+			pci_restore_config_space_range(pdev, 4, 9, 0);
+		else
+			pci_restore_config_space_range(pdev, 4, 9, 10);
 		pci_restore_config_space_range(pdev, 0, 3, 0);
 	} else {
 		pci_restore_config_space_range(pdev, 0, 15, 0);
@@ -1929,7 +1939,6 @@ void pci_pm_init(struct pci_dev *dev)
 	pm_runtime_forbid(&dev->dev);
 	pm_runtime_set_active(&dev->dev);
 	pm_runtime_enable(&dev->dev);
-	device_enable_async_suspend(&dev->dev);
 	dev->wakeup_prepared = false;
 
 	dev->pm_cap = 0;
