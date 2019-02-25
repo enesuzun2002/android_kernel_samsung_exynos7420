@@ -187,7 +187,7 @@ struct cpufreq_nexus_tunables {
 	unsigned int timer_rate;
 
 	// indicates if I/O-time should be added to cputime
-	#define DEFAULT_IO_IS_BUSY 1
+	#define DEFAULT_IO_IS_BUSY 0
 	int io_is_busy;
 
 	// minimal frequency chosen by the cpugov
