@@ -1287,11 +1287,7 @@ select_task_rq_rt(struct task_struct *p, int cpu, int sd_flag, int flags)
 {
 	struct task_struct *curr;
 	struct rq *rq;
-<<<<<<< HEAD
-	int cpu;
-=======
 	bool may_not_preempt;
->>>>>>> 94722af... Backport EAS scheduler from 3.18
 
 	if (p->nr_cpus_allowed == 1)
 		goto out;
@@ -1329,12 +1325,7 @@ select_task_rq_rt(struct task_struct *p, int cpu, int sd_flag, int flags)
 	 */
 	if (curr && unlikely(rt_task(curr)) &&
 	    (curr->nr_cpus_allowed < 2 ||
-<<<<<<< HEAD
-	     curr->prio <= p->prio) &&
-	    (p->nr_cpus_allowed > 1)) {
-=======
-	     curr->prio <= p->prio)))) {
->>>>>>> 94722af... Backport EAS scheduler from 3.18
+	     curr->prio <= p->prio)) {
 		int target = find_lowest_rq(p);
 
 		if (target != -1)

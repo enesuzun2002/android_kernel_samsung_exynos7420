@@ -3852,19 +3852,12 @@ static int energy_diff(struct energy_env *eenv)
 	if (!sd)
 		return 0; /* Error */
 
-<<<<<<< HEAD
-	if (migrate_up) {
-		struct hmp_domain *hmp;
-		if(hmp_cpu_is_fastest(cpu_of(se->cfs_rq->rq)))
-			return max_se;
-=======
 	sg = sd->groups;
 	do {
 		if (eenv->src_cpu != -1 && cpumask_test_cpu(eenv->src_cpu,
 							sched_group_cpus(sg))) {
 			eenv_before.sg_top = eenv->sg_top = sg;
 			energy_before += sched_group_energy(&eenv_before);
->>>>>>> 94722af... Backport EAS scheduler from 3.18
 
 			/* Keep track of SRC cpu (before) capacity */
 			eenv->cap.before = eenv_before.cap.before;
@@ -3872,20 +3865,8 @@ static int energy_diff(struct energy_env *eenv)
 
 			energy_after += sched_group_energy(eenv);
 
-<<<<<<< HEAD
-	while(num_tasks && se) {
-		if (entity_is_task(se)) {
-			if(se->avg.load_avg_ratio > max_ratio &&
-					(hmp_target_mask &&
-					 cpumask_intersects(hmp_target_mask,
-						 tsk_cpus_allowed(task_of(se))))) {
-				max_se = se;
-				max_ratio = se->avg.load_avg_ratio;
-			}
-=======
 			/* src_cpu and dst_cpu may belong to the same group */
 			continue;
->>>>>>> 94722af... Backport EAS scheduler from 3.18
 		}
 
 		if (eenv->dst_cpu != -1	&& cpumask_test_cpu(eenv->dst_cpu,
@@ -3907,19 +3888,7 @@ static int energy_diff(struct energy_env *eenv)
 
 static int wake_wide(struct task_struct *p)
 {
-<<<<<<< HEAD
-	int num_tasks = hmp_max_tasks;
-	struct sched_entity *min_se = se;
-	unsigned long int min_ratio = ULONG_MAX;
-	const struct cpumask *hmp_target_mask = NULL;
-
-	if (migrate_down) {
-		struct hmp_domain *hmp;
-		if(hmp_cpu_is_slowest(cpu_of(se->cfs_rq->rq)))
-			return min_se;
-=======
 	int factor = this_cpu_read(sd_llc_size);
->>>>>>> 94722af... Backport EAS scheduler from 3.18
 
 	/*
 	 * Yeah, it's the switching-frequency, could means many wakee or
@@ -3954,21 +3923,6 @@ static int wake_affine(struct sched_domain *sd, struct task_struct *p, int sync)
 	 */
 	if (wake_wide(p))
 		return 0;
-
-<<<<<<< HEAD
-	while(num_tasks && se) {
-		if (entity_is_task(se)) {
-			if(se->avg.load_avg_ratio < min_ratio &&
-					(hmp_target_mask &&
-					 cpumask_intersects(hmp_target_mask,
-						 tsk_cpus_allowed(task_of(se))))) {
-				min_se = se;
-				min_ratio = se->avg.load_avg_ratio;
-			}
-		}
-		se = __pick_next_entity(se);
-		num_tasks--;
-=======
 	idx	  = sd->wake_idx;
 	this_cpu  = smp_processor_id();
 	prev_cpu  = task_cpu(p);
@@ -3986,7 +3940,6 @@ static int wake_affine(struct sched_domain *sd, struct task_struct *p, int sync)
 
 		this_load += effective_load(tg, this_cpu, -weight, -weight);
 		load += effective_load(tg, prev_cpu, 0, -weight);
->>>>>>> 94722af... Backport EAS scheduler from 3.18
 	}
 
 	tg = task_group(p);
@@ -5485,32 +5438,7 @@ static void update_blocked_averages(int cpu)
  * This needs to be done in a top-down fashion because the load of a child
  * group is a fraction of its parents load.
  */
-<<<<<<< HEAD
-static int tg_load_down(struct task_group *tg, void *data)
-{
-	unsigned long load;
-	long cpu = (long)data;
-
-	if (!tg->parent) {
-		load = cpu_rq(cpu)->load.weight;
-	} else {
-                unsigned long tmp_rla;
- 		tmp_rla = tg->parent->cfs_rq[cpu]->runnable_load_avg + 1;
-
-		load = tg->parent->cfs_rq[cpu]->h_load;
-		load *= tg->se[cpu]->load.weight;
-		load /= tg->parent->cfs_rq[cpu]->load.weight + 1;
-	}
-
-	tg->cfs_rq[cpu]->h_load = load;
-
-	return 0;
-}
-
-static void update_h_load(long cpu)
-=======
 static void update_cfs_rq_h_load(struct cfs_rq *cfs_rq)
->>>>>>> 94722af... Backport EAS scheduler from 3.18
 {
 	struct rq *rq = rq_of(cfs_rq);
 	struct sched_entity *se = cfs_rq->tg->se[cpu_of(rq)];
@@ -5897,13 +5825,8 @@ static enum group_type group_classify(struct lb_env *env,
  */
 static inline void update_sg_lb_stats(struct lb_env *env,
 			struct sched_group *group, int load_idx,
-<<<<<<< HEAD
-			int local_group, int *balance, struct sg_lb_stats *sgs,
-			bool *overload)
-=======
 			int local_group, struct sg_lb_stats *sgs,
 			bool *overload, bool *overutilized)
->>>>>>> 94722af... Backport EAS scheduler from 3.18
 {
 	unsigned long load;
 	int i;
@@ -6035,11 +5958,7 @@ static inline void update_sd_lb_stats(struct lb_env *env, struct sd_lb_stats *sd
 	struct sched_group *sg = env->sd->groups;
 	struct sg_lb_stats tmp_sgs;
 	int load_idx, prefer_sibling = 0;
-<<<<<<< HEAD
-	bool overload = false;
-=======
 	bool overload = false, overutilized = false;
->>>>>>> 94722af... Backport EAS scheduler from 3.18
 
 	if (child && child->flags & SD_PREFER_SIBLING)
 		prefer_sibling = 1;
@@ -6051,15 +5970,9 @@ static inline void update_sd_lb_stats(struct lb_env *env, struct sd_lb_stats *sd
 		int local_group;
 
 		local_group = cpumask_test_cpu(env->dst_cpu, sched_group_cpus(sg));
-<<<<<<< HEAD
-		memset(&sgs, 0, sizeof(sgs));
-		update_sg_lb_stats(env, sg, load_idx, local_group, balance, &sgs,
-						&overload);
-=======
 		if (local_group) {
 			sds->local = sg;
 			sgs = &sds->local_stat;
->>>>>>> 94722af... Backport EAS scheduler from 3.18
 
 			if (env->idle != CPU_NEWLY_IDLE ||
 			    time_after_eq(jiffies, sg->sgc->next_update))
@@ -6102,8 +6015,6 @@ next_group:
 		sg = sg->next;
 	} while (sg != env->sd->groups);
 
-<<<<<<< HEAD
-=======
 #ifdef CONFIG_NUMA_BALANCING
 	if (env->sd->flags & SD_NUMA)
 		env->fbq_type = fbq_classify_group(&sds->busiest_stat);
@@ -6111,13 +6022,10 @@ next_group:
 
 	env->src_grp_nr_running = sds->busiest_stat.sum_nr_running;
 
->>>>>>> 94722af... Backport EAS scheduler from 3.18
 	if (!env->sd->parent) {
 		/* update overload indicator if we are at root domain */
 		if (env->dst_rq->rd->overload != overload)
 			env->dst_rq->rd->overload = overload;
-<<<<<<< HEAD
-=======
 
 		/* Update over-utilization (tipping point, U >= 0) indicator */
 		if (env->dst_rq->rd->overutilized != overutilized)
@@ -6125,7 +6033,6 @@ next_group:
 	} else {
 		if (!env->dst_rq->rd->overutilized && overutilized)
 			env->dst_rq->rd->overutilized = true;
->>>>>>> 94722af... Backport EAS scheduler from 3.18
 	}
 }
 
@@ -6952,12 +6859,6 @@ static int idle_balance(struct rq *this_rq)
 	u64 curr_cost = 0;
 
 	idle_enter_fair(this_rq);
-
-<<<<<<< HEAD
-	if (this_rq->avg_idle < sysctl_sched_migration_cost ||
-	    !this_rq->rd->overload)
-		return;
-=======
 	/*
 	 * We must set idle_stamp _before_ calling idle_balance(), such that we
 	 * measure the duration of idle_balance() as idle time.
@@ -6975,7 +6876,6 @@ static int idle_balance(struct rq *this_rq)
 
 		goto out;
 	}
->>>>>>> 94722af... Backport EAS scheduler from 3.18
 
 	/*
 	 * Drop the rq->lock, but keep IRQ/preempt disabled.
@@ -6997,11 +6897,8 @@ static int idle_balance(struct rq *this_rq)
 		}
 
 		if (sd->flags & SD_BALANCE_NEWIDLE) {
-<<<<<<< HEAD
-=======
 			t0 = sched_clock_cpu(this_cpu);
 
->>>>>>> 94722af... Backport EAS scheduler from 3.18
 			pulled_task = load_balance(this_cpu, this_rq,
 						   sd, CPU_NEWLY_IDLE,
 						   &continue_balancing);
@@ -7013,17 +6910,6 @@ static int idle_balance(struct rq *this_rq)
 			curr_cost += domain_cost;
 		}
 
-<<<<<<< HEAD
-		interval = msecs_to_jiffies(sd->balance_interval);
-		if (time_after(next_balance, sd->last_balance + interval))
-			next_balance = sd->last_balance + interval;
-			/*
-			* Stop searching for tasks to pull if there are
-			* now runnable tasks on this rq.
-			*/
- 			if (pulled_task || this_rq->nr_running > 0) {
-			this_rq->idle_stamp = 0;
-=======
 		update_next_balance(sd, 0, &next_balance);
 
 		/*
@@ -7031,7 +6917,6 @@ static int idle_balance(struct rq *this_rq)
 		 * now runnable tasks on this rq.
 		 */
 		if (pulled_task || this_rq->nr_running > 0)
->>>>>>> 94722af... Backport EAS scheduler from 3.18
 			break;
 	}
 	rcu_read_unlock();

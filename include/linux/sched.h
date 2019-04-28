@@ -1955,11 +1955,6 @@ static inline pid_t task_tgid_nr_ns(struct task_struct *tsk, struct pid_namespac
 	return __task_pid_nr_ns(tsk, __PIDTYPE_TGID, ns);
 }
 
-static inline pid_t task_tgid_vnr(struct task_struct *tsk)
-{
-	return __task_pid_nr_ns(tsk, __PIDTYPE_TGID, NULL);
-}
-
 /* obsolete, do not use */
 static inline pid_t task_pgrp_nr(struct task_struct *tsk)
 {
@@ -2467,7 +2462,7 @@ extern void wake_up_new_task(struct task_struct *tsk);
 #else
  static inline void kick_process(struct task_struct *tsk) { }
 #endif
-extern void sched_fork(struct task_struct *p);
+extern int sched_fork(unsigned long clone_flags, struct task_struct *p);
 extern void sched_dead(struct task_struct *p);
 
 extern void proc_caches_init(void);

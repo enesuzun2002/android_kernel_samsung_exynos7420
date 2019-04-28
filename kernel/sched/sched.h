@@ -6,6 +6,7 @@
 #include <linux/mutex.h>
 #include <linux/spinlock.h>
 #include <linux/stop_machine.h>
+#include <linux/irq_work.h>
 #include <linux/tick.h>
 #include <linux/slab.h>
 
@@ -41,11 +42,13 @@ extern void update_cpu_load_active(struct rq *this_rq);
  * and does not change the user-interface for setting shares/weights.
  *
  * We increase resolution only if we have enough bits to allow this increased
- * resolution (i.e. BITS_PER_LONG > 32). The costs for increasing resolution
- * when BITS_PER_LONG <= 32 are pretty high and the returns do not justify the
- * increased costs.
+ * resolution (i.e. 64bit). The costs for increasing resolution when 32bit are
+ * pretty high and the returns do not justify the increased costs.
+ *
+ * Really only required when CONFIG_FAIR_GROUP_SCHED is also set, but to
+ * increase coverage and consistency always enable it on 64bit platforms.
  */
-#if 0 /* BITS_PER_LONG > 32 -- currently broken: it increases power usage under light load  */
+#ifdef CONFIG_64BIT
 # define SCHED_LOAD_RESOLUTION	10
 # define scale_load(w)		((w) << SCHED_LOAD_RESOLUTION)
 # define scale_load_down(w)	((w) >> SCHED_LOAD_RESOLUTION)
@@ -541,6 +544,10 @@ struct rq {
 	 * remote CPUs use both these fields when doing load calculation.
 	 */
 	unsigned int nr_running;
+#ifdef CONFIG_NUMA_BALANCING
+	unsigned int nr_numa_running;
+	unsigned int nr_preferred_running;
+#endif
 	#define CPU_LOAD_IDX_MAX 5
 	unsigned long cpu_load[CPU_LOAD_IDX_MAX];
 	unsigned long last_load_update_tick;
@@ -1273,6 +1280,7 @@ static inline int idle_get_state_idx(struct rq *rq)
 }
 #endif
 
+#if 0
 #ifndef arch_scale_cpu_capacity
 static __always_inline
 unsigned long arch_scale_cpu_capacity(struct sched_domain *sd, int cpu)
@@ -1282,6 +1290,7 @@ unsigned long arch_scale_cpu_capacity(struct sched_domain *sd, int cpu)
 
 	return SCHED_CAPACITY_SCALE;
 }
+#endif
 #endif
 
 unsigned long capacity_orig_of(int cpu);
@@ -1333,12 +1342,6 @@ static inline void add_nr_running(struct rq *rq, unsigned count)
 	rq->nr_running = prev_nr + count;
 
 	if (prev_nr < 2 && rq->nr_running >= 2) {
-#ifdef CONFIG_SMP
-		if (!rq->rd->overload)
-			rq->rd->overload = true;
-#endif
-
-	if (rq->nr_running >= 2) {
 #ifdef CONFIG_SMP
 		if (!rq->rd->overload)
 			rq->rd->overload = true;
