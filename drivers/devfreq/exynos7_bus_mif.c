@@ -31,6 +31,7 @@
 #include "devfreq_exynos.h"
 #include "governor.h"
 #include <mach/bts.h>
+#include <linux/devfreq_boost.h>
 
 #define DEVFREQ_MIF_REBOOT_FREQ	(1672000/2)
 #define DEVFREQ_INITIAL_FREQ	(3104000/2)
@@ -399,6 +400,14 @@ static int exynos7_devfreq_mif_probe(struct platform_device *pdev)
 						&exynos7_devfreq_mif_profile,
 						"simple_exynos",
 						&exynos7_devfreq_mif_governor_data);
+
+        if(data->devfreq == NULL) {
+		pr_err("DEVFREQ(MIF) : failed to add device\n");
+		ret = -ENOMEM;
+		goto err_data;
+	}
+
+	devfreq_register_boost_device(DEVFREQ_EXYNOS_MIF, data->devfreq);
 
 	exynos7_devfreq_init_thermal();
 
