@@ -166,6 +166,10 @@ config SND_SOC_ARIZONA
 	default m if SND_SOC_VEGAS=m
 	default m if SND_SOC_LARGO=m
 
+config MORO_SOUND
+	bool "Sound control for Exynos7420 Clearwater driver"
+	default y
+
 config SND_SOC_WM_HUBS
 	tristate
 	default y if SND_SOC_WM8993=y || SND_SOC_WM8994=y
