@@ -1,10 +1,10 @@
 /*
  * moro_sound.c  --  Sound mod for Moon, S7 sound driver
  *
- *
  * Author	: @morogoku https://github.com/morogoku
  * 
  * Date		: March 2019 - v2.0
+ *		: April 2019 - v2.1
  *
  *
  * Based on the Boeffla Sound 1.6 for Galaxy S3
@@ -30,6 +30,7 @@
 static struct regmap *map;
 
 // internal moro sound variables
+static int first = 1;		// first access
 static int moro_sound;		// moro sound master switch
 static int debug;		// debug switch
 
@@ -55,23 +56,24 @@ static int eq_gains[5];		// eq 5 bands gains
 
 static unsigned int get_headphone_gain_l(void);
 static unsigned int get_headphone_gain_r(void);
-static void set_headphone_gain_l(void);
-static void set_headphone_gain_r(void);
+static void set_headphone_gain_l(int gain);
+static void set_headphone_gain_r(int gain);
 
 static unsigned int get_earpiece_gain(void);
-static void set_earpiece_gain(void);
+static void set_earpiece_gain(int gain);
 
-static void set_out1l_mix_source(void);
-static void set_out1r_mix_source(void);
+static void set_out1l_mix_source(int value);
+static void set_out1r_mix_source(int value);
 
-static void set_eq1_mix_source(void);
-static void set_eq2_mix_source(void);
+static void set_eq1_mix_source(int value);
+static void set_eq2_mix_source(int value);
 
 static void set_eq(void);
 static void set_eq_gains(void);
 
 static void reset_moro_sound(void);
 static void reset_audio_hub(void);
+static void update_audio_hub(void);
 
 
 /*****************************************/
@@ -93,13 +95,13 @@ static unsigned int get_headphone_gain_l(void)
 	return val;
 }
 
-static void set_headphone_gain_l(void)
+static void set_headphone_gain_l(int gain)
 {
 	unsigned int val;
 
 	moon_read(ARIZONA_DAC_DIGITAL_VOLUME_1L, &val);
 	val &= ~ARIZONA_OUT1L_VOL_MASK;
-	val |= (headphone_gain_l << ARIZONA_OUT1L_VOL_SHIFT);
+	val |= (gain << ARIZONA_OUT1L_VOL_SHIFT);
 	moon_write(ARIZONA_DAC_DIGITAL_VOLUME_1L, val);
 }
 
@@ -114,13 +116,13 @@ static unsigned int get_headphone_gain_r(void)
 	return val;
 }
 
-static void set_headphone_gain_r(void)
+static void set_headphone_gain_r(int gain)
 {
 	unsigned int val;
 
 	moon_read(ARIZONA_DAC_DIGITAL_VOLUME_1R, &val);
 	val &= ~ARIZONA_OUT1R_VOL_MASK;
-	val |= (headphone_gain_r << ARIZONA_OUT1R_VOL_SHIFT);
+	val |= (gain << ARIZONA_OUT1R_VOL_SHIFT);
 	moon_write(ARIZONA_DAC_DIGITAL_VOLUME_1R, val);
 }
 
@@ -135,17 +137,17 @@ static unsigned int get_earpiece_gain(void)
 	return val;
 }
 
-static void set_earpiece_gain(void)
+static void set_earpiece_gain(int gain)
 {
 	unsigned int val;
 
 	moon_read(ARIZONA_DAC_DIGITAL_VOLUME_3L, &val);
 	val &= ~ARIZONA_OUT3L_VOL_MASK;
-	val |= (earpiece_gain << ARIZONA_OUT3L_VOL_SHIFT);
+	val |= (gain << ARIZONA_OUT3L_VOL_SHIFT);
 	moon_write(ARIZONA_DAC_DIGITAL_VOLUME_3L, val);
 }
 
-static void set_out1l_mix_source(void)
+static void set_out1l_mix_source(int value)
 {
 	unsigned int val;
 
@@ -155,34 +157,34 @@ static void set_out1l_mix_source(void)
 	moon_write(ARIZONA_OUT1LMIX_INPUT_1_SOURCE, val);
 }
 
-static void set_out1r_mix_source(void)
+static void set_out1r_mix_source(int value)
 {
 	unsigned int val;
 
 	moon_read(ARIZONA_OUT1RMIX_INPUT_1_SOURCE, &val);
 	val &= ~ARIZONA_MIXER_SOURCE_MASK;
-	val |= (out1r_mix_source << ARIZONA_MIXER_SOURCE_SHIFT);
+	val |= (value << ARIZONA_MIXER_SOURCE_SHIFT);
 	moon_write(ARIZONA_OUT1RMIX_INPUT_1_SOURCE, val);
 }
 
-static void set_eq1_mix_source(void)
+static void set_eq1_mix_source(int value)
 {
 	unsigned int val;
 
 	moon_read(ARIZONA_EQ1MIX_INPUT_1_SOURCE, &val);
 	val &= ~ARIZONA_MIXER_SOURCE_MASK;
-	val |= (eq1_mix_source << ARIZONA_MIXER_SOURCE_SHIFT);
+	val |= (value << ARIZONA_MIXER_SOURCE_SHIFT);
 	moon_write(ARIZONA_EQ1MIX_INPUT_1_SOURCE, val);
 }
 
 
-static void set_eq2_mix_source(void)
+static void set_eq2_mix_source(int value)
 {
 	unsigned int val;
 
 	moon_read(ARIZONA_EQ2MIX_INPUT_1_SOURCE, &val);
 	val &= ~ARIZONA_MIXER_SOURCE_MASK;
-	val |= (eq2_mix_source << ARIZONA_MIXER_SOURCE_SHIFT);
+	val |= (value << ARIZONA_MIXER_SOURCE_SHIFT);
 	moon_write(ARIZONA_EQ2MIX_INPUT_1_SOURCE, val);
 }
 
@@ -208,13 +210,13 @@ static void set_eq(void)
 		// Set mixers
 		eq1_mix_source = 32;	// EQ1 -> AIF1 RX1 left
 		eq2_mix_source = 33;	// EQ2 -> AIF1 RX2 right
-		set_eq1_mix_source();
-		set_eq2_mix_source();
+		set_eq1_mix_source(eq1_mix_source);
+		set_eq2_mix_source(eq2_mix_source);
 
 		out1l_mix_source = 80;	// OUT1L -> EQ1 left
 		out1r_mix_source = 81;	// OUT1R -> EQ2 right
-		set_out1l_mix_source();
-		set_out1r_mix_source();
+		set_out1l_mix_source(out1l_mix_source);
+		set_out1r_mix_source(out1r_mix_source);
 	}
 	// If EQ is disabled
 	else
@@ -234,13 +236,13 @@ static void set_eq(void)
 		// Set mixers to default
 		eq1_mix_source = EQ1_MIX_DEFAULT;
 		eq2_mix_source = EQ2_MIX_DEFAULT;
-		set_eq1_mix_source();
-		set_eq2_mix_source();
+		set_eq1_mix_source(eq1_mix_source);
+		set_eq2_mix_source(eq2_mix_source);
 
 		out1l_mix_source = OUT1L_MIX_DEFAULT;
 		out1r_mix_source = OUT1R_MIX_DEFAULT;
-		set_out1l_mix_source();
-		set_out1r_mix_source();
+		set_out1l_mix_source(out1l_mix_source);
+		set_out1r_mix_source(out1r_mix_source);
 	}
 
 	set_eq_gains();
@@ -397,23 +399,46 @@ static void reset_audio_hub(void)
 {
 	// reset all audio hub registers back to defaults
 
-	set_headphone_gain_l();
-	set_headphone_gain_r();
+	set_headphone_gain_l(HEADPHONE_DEFAULT);
+	set_headphone_gain_r(HEADPHONE_DEFAULT);
 
-	set_earpiece_gain();
+	set_earpiece_gain(EARPIECE_DEFAULT);
 
-	set_speaker_gain(speaker_gain);
+	set_speaker_gain(SPEAKER_DEFAULT);
 
-	set_out1l_mix_source();
-	set_out1r_mix_source();
+	set_out1l_mix_source(OUT1L_MIX_DEFAULT);
+	set_out1r_mix_source(OUT1R_MIX_DEFAULT);
 
-	set_eq1_mix_source();
-	set_eq2_mix_source();
+	set_eq1_mix_source(EQ1_MIX_DEFAULT);
+	set_eq2_mix_source(EQ2_MIX_DEFAULT);
 
 	set_eq();
 	
 	if (debug)
 		printk("Moro-sound: moon audio hub reset done\n");
+}
+
+static void update_audio_hub(void)
+{
+	// reset all audio hub registers back to defaults
+
+	set_headphone_gain_l(headphone_gain_l);
+	set_headphone_gain_r(headphone_gain_r);
+
+	set_earpiece_gain(earpiece_gain);
+
+	set_speaker_gain(speaker_gain);
+
+	set_out1l_mix_source(out1l_mix_source);
+	set_out1r_mix_source(out1r_mix_source);
+
+	set_eq1_mix_source(eq1_mix_source);
+	set_eq2_mix_source(eq2_mix_source);
+
+	set_eq();
+	
+	if (debug)
+		printk("Moro-sound: moon audio hub updated done\n");
 }
 
 
@@ -452,8 +477,14 @@ static ssize_t moro_sound_store(struct device *dev, struct device_attribute *att
 			moro_sound = val;
 
 			// re-initialize settings and audio hub (in any case for both on and off !)
-			reset_moro_sound();
-			reset_audio_hub();
+			// if is the first enable, reset variables
+			if(first) {
+				reset_moro_sound();
+				first = 0;
+			}
+
+			if(val == 1) update_audio_hub();
+			if(val == 0) reset_audio_hub();
 		}
 
 		// print debug info
@@ -469,14 +500,8 @@ static ssize_t moro_sound_store(struct device *dev, struct device_attribute *att
 
 static ssize_t headphone_gain_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	int val_l;
-	int val_r;
-
-	val_l = get_headphone_gain_l();
-	val_r = get_headphone_gain_r();
-
 	// print current values
-	return sprintf(buf, "%d %d\n", val_l, val_r);
+	return sprintf(buf, "%d %d\n", headphone_gain_l, headphone_gain_r);
 }
 
 
@@ -497,13 +522,25 @@ static ssize_t headphone_gain_store(struct device *dev, struct device_attribute 
 	if (ret != 2)
 		return -EINVAL;
 
+	if (val_l < HEADPHONE_MIN)
+		val_l = HEADPHONE_MIN;
+
+	if (val_l > HEADPHONE_MAX)
+		val_l = HEADPHONE_MAX;
+
+	if (val_r < HEADPHONE_MIN)
+		val_r = HEADPHONE_MIN;
+
+	if (val_r > HEADPHONE_MAX)
+		val_r = HEADPHONE_MAX;
+
 	// store new values
 	headphone_gain_l = val_l;
 	headphone_gain_r = val_r;
 
 	// set new values
-	set_headphone_gain_l();
-	set_headphone_gain_r();
+	set_headphone_gain_l(headphone_gain_l);
+	set_headphone_gain_r(headphone_gain_r);
 
 	// print debug info
 	if (debug)
@@ -512,17 +549,19 @@ static ssize_t headphone_gain_store(struct device *dev, struct device_attribute 
 	return count;
 }
 
+static ssize_t headphone_limits_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	// return version information
+	return sprintf(buf, "Min:%d\nMax:%d\nDef:%d\n", HEADPHONE_MIN, HEADPHONE_MAX, HEADPHONE_DEFAULT);
+}
+
 
 // Earpiece Volume
 
 static ssize_t earpiece_gain_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	int val;
-
-	val = get_earpiece_gain();
-
 	// print current values
-	return sprintf(buf, "%d\n", val);
+	return sprintf(buf, "%d\n", earpiece_gain);
 }
 
 static ssize_t earpiece_gain_store(struct device *dev, struct device_attribute *attr,
@@ -541,11 +580,17 @@ static ssize_t earpiece_gain_store(struct device *dev, struct device_attribute *
 	if (ret != 1)
 		return -EINVAL;
 
+	if (val < EARPIECE_MIN)
+		val = EARPIECE_MIN;
+
+	if (val > EARPIECE_MAX)
+		val = EARPIECE_MAX;
+
 	// store new values
 	earpiece_gain = val;
 
 	// set new values
-	set_earpiece_gain();
+	set_earpiece_gain(earpiece_gain);
 
 	// print debug info
 	if (debug)
@@ -554,17 +599,19 @@ static ssize_t earpiece_gain_store(struct device *dev, struct device_attribute *
 	return count;
 }
 
+static ssize_t earpiece_limits_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	// return version information
+	return sprintf(buf, "Min:%d\nMax:%d\nDef:%d\n", EARPIECE_MIN, EARPIECE_MAX, EARPIECE_DEFAULT);
+}
+
 
 // Speaker Volume
 
 static ssize_t speaker_gain_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	int val;
-
-	val = get_speaker_gain();
-
 	// print current values
-	return sprintf(buf, "%d\n", val);
+	return sprintf(buf, "%d\n", speaker_gain);
 }
 
 static ssize_t speaker_gain_store(struct device *dev, struct device_attribute *attr,
@@ -596,6 +643,12 @@ static ssize_t speaker_gain_store(struct device *dev, struct device_attribute *a
 		printk("Moro-sound: speaker volume: %d\n", speaker_gain);
 
 	return count;
+}
+
+static ssize_t speaker_limits_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	// return version information
+	return sprintf(buf, "Min:%d\nMax:%d\nDef:%d\n", SPEAKER_MIN, SPEAKER_MAX, SPEAKER_DEFAULT);
 }
 
 
@@ -945,8 +998,9 @@ static ssize_t reg_dump_show(struct device *dev, struct device_attribute *attr, 
 	
 	// return register dump information
 	return sprintf(buf, "\
-headphone_gain_l: %d\n\
-headphone_gain_r: %d\n\
+headphone_gain_l: reg: %d, variable: %d\n\
+headphone_gain_r: reg: %d, variable: %d\n\
+first enable: %d\n\
 earpiece_gain: %d\n\
 speaker_gain: %d\n\
 HPOUT Enabled: %d\n\
@@ -962,8 +1016,11 @@ EQ b3 gain: %d\n\
 EQ b4 gain: %d\n\
 EQ b5 gain: %d\n\
 ", 
-get_headphone_gain_l(), 
+get_headphone_gain_l(),
+headphone_gain_l,
 get_headphone_gain_r(),
+headphone_gain_r,
+first,
 get_earpiece_gain(),
 get_speaker_gain(),
 out1_ena,
@@ -997,8 +1054,11 @@ static ssize_t version_show(struct device *dev, struct device_attribute *attr, c
 // define objects
 static DEVICE_ATTR(moro_sound, 0664, moro_sound_show, moro_sound_store);
 static DEVICE_ATTR(headphone_gain, 0664, headphone_gain_show, headphone_gain_store);
+static DEVICE_ATTR(headphone_limits, 0664, headphone_limits_show, NULL);
 static DEVICE_ATTR(earpiece_gain, 0664, earpiece_gain_show, earpiece_gain_store);
+static DEVICE_ATTR(earpiece_limits, 0664, earpiece_limits_show, NULL);
 static DEVICE_ATTR(speaker_gain, 0664, speaker_gain_show, speaker_gain_store);
+static DEVICE_ATTR(speaker_limits, 0664, speaker_limits_show, NULL);
 static DEVICE_ATTR(eq, 0664, eq_show, eq_store);
 static DEVICE_ATTR(eq_gains, 0664, eq_gains_show, eq_gains_store);
 static DEVICE_ATTR(eq_b1_gain, 0664, eq_b1_gain_show, eq_b1_gain_store);
@@ -1014,8 +1074,11 @@ static DEVICE_ATTR(reg_dump, 0664, reg_dump_show, NULL);
 static struct attribute *moro_sound_attributes[] = {
 	&dev_attr_moro_sound.attr,
 	&dev_attr_headphone_gain.attr,
+	&dev_attr_headphone_limits.attr,
 	&dev_attr_earpiece_gain.attr,
+	&dev_attr_earpiece_limits.attr,
 	&dev_attr_speaker_gain.attr,
+	&dev_attr_speaker_limits.attr,
 	&dev_attr_eq.attr,
 	&dev_attr_eq_gains.attr,
 	&dev_attr_eq_b1_gain.attr,
@@ -1086,6 +1149,5 @@ static void moro_sound_exit(void)
 
 module_init(moro_sound_init);
 module_exit(moro_sound_exit);
-
 
 
