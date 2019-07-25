@@ -302,27 +302,27 @@ static int max98505_spk_vol_put(struct snd_kcontrol *kcontrol,
 }
 
 #ifdef CONFIG_MORO_SOUND
-struct snd_soc_codec *max98506_codec;
+struct snd_soc_codec *max98505_codec;
 
 int get_speaker_gain(void)
 {
-	struct max98506_priv *max98506 = snd_soc_codec_get_drvdata(max98506_codec);
-	struct max98506_pdata *pdata = max98506->pdata;
+	struct max98505_priv *max98505 = snd_soc_codec_get_drvdata(max98505_codec);
+	struct max98505_pdata *pdata = max98505->pdata;
 
-	return pdata->spk_gain;
+	return pdata->vstep.vol_step;
 }
 
 int set_speaker_gain(int gain)
 {
-	struct max98506_priv *max98506 = snd_soc_codec_get_drvdata(max98506_codec);
-	struct max98506_pdata *pdata = max98506->pdata;
+	struct max98505_priv *max98505 = snd_soc_codec_get_drvdata(max98505_codec);
+	struct max98505_pdata *pdata = max98505->pdata;
 
-	max98506_regmap_update_bits(max98506, MAX98506_R02D_GAIN,
-			MAX98506_SPK_GAIN_MASK, gain << MAX98506_SPK_GAIN_SHIFT);
+	max98505_regmap_update_bits(max98505, MAX98505_R02D_GAIN,
+			MAX98505_SPK_GAIN_MASK, gain << MAX98505_SPK_GAIN_SHIFT);
 
-	pdata->spk_gain = gain;
+	pdata->vstep.vol_step = gain;
 
-	return pdata->spk_gain;
+	return pdata->vstep.vol_step;
 }
 #endif
 
@@ -1399,7 +1399,7 @@ static int max98505_probe(struct snd_soc_codec *codec)
 	dev_info(codec->dev, "build number %s\n", MAX98505_REVISION);
 
 #ifdef CONFIG_MORO_SOUND
-	max98506_codec = codec;
+	max98505_codec = codec;
 #endif	
 
 	max98505->codec = codec;
