@@ -175,9 +175,6 @@ struct mdnie_info {
 
 };
 
-extern int mdnie_calibration(int *r);
-extern int mdnie_open_file(const char *path, char **fp);
-
 #if defined(CONFIG_EXYNOS_DECON_MDNIE)
 extern struct mdnie_info* decon_mdnie_register(void);
 extern void decon_mdnie_start(struct mdnie_info *mdnie, u32 w, u32 h);
@@ -191,7 +188,6 @@ extern int mdnie_register(struct device *p, void *data, mdnie_w w, mdnie_r r, un
 #if defined(CONFIG_EXYNOS_DECON_DUAL_DISPLAY) && defined(CONFIG_EXYNOS_DECON_MDNIE_LITE)
 extern int mdnie2_register(struct device *p, void *data, mdnie_w w, mdnie_r r);
 #endif
-extern uintptr_t mdnie_request_table(char *path, struct mdnie_table *s);
 extern ssize_t attr_store_for_each(struct class *cls, const char *name, const char *buf, size_t size);
 extern struct class *get_mdnie_class(void);
 

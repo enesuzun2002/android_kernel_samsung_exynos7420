@@ -100,19 +100,7 @@ exit:
 
 static void mdnie_update_sequence(struct mdnie_info *mdnie, struct mdnie_table *table)
 {
-	struct mdnie_table *t = NULL;
-
-	if (mdnie->tuning) {
-		t = mdnie_request_table(mdnie->path, table);
-		if (!IS_ERR_OR_NULL(t) && !IS_ERR_OR_NULL(t->name)){
-			mdnie_write_table(mdnie, t);
-			dev_info(mdnie->dev, "%s table t\n", __func__);
-		}
-		else
-			mdnie_write_table(mdnie, table);
-	} else
-		mdnie_write_table(mdnie, table);
-	return;
+	mdnie_write_table(mdnie, table);
 }
 
 static void mdnie_update(struct mdnie_info *mdnie)
@@ -249,6 +237,34 @@ static void update_color_position(struct mdnie_info *mdnie, unsigned int idx)
 	mutex_unlock(&mdnie->lock);
 }
 
+static int mdnie_calibration(int *r)
+{
+	int ret = 0;
+
+	if (r[1] > 0) {
+		if (r[3] > 0)
+			ret = 3;
+		else
+			ret = (r[4] < 0) ? 1 : 2;
+	} else {
+		if (r[2] < 0) {
+			if (r[3] > 0)
+				ret = 9;
+			else
+				ret = (r[4] < 0) ? 7 : 8;
+		} else {
+			if (r[3] > 0)
+				ret = 6;
+			else
+				ret = (r[4] < 0) ? 4 : 5;
+		}
+	}
+
+	pr_info("%d, %d, %d, %d, tune%d\n", r[1], r[2], r[3], r[4], ret);
+
+	return ret;
+}
+
 static int get_panel_coordinate(struct mdnie_info *mdnie, int *result)
 {
 	int ret = 0;
@@ -345,73 +361,6 @@ static ssize_t scenario_store(struct device *dev,
 	mutex_unlock(&mdnie->lock);
 
 	mdnie_update(mdnie);
-
-	return count;
-}
-
-static ssize_t tuning_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct mdnie_info *mdnie = dev_get_drvdata(dev);
-	char *pos = buf;
-	struct mdnie_table *table = NULL;
-	int i;
-
-	pos += sprintf(pos, "++ %s: %s\n", __func__, mdnie->path);
-
-	if (!mdnie->tuning) {
-		pos += sprintf(pos, "tunning mode is off\n");
-		goto exit;
-	}
-
-	if (strncmp(mdnie->path, MDNIE_SYSFS_PREFIX, sizeof(MDNIE_SYSFS_PREFIX) - 1)) {
-		pos += sprintf(pos, "file path is invalid, %s\n", mdnie->path);
-		goto exit;
-	}
-
-	table = mdnie_find_table(mdnie);
-	table = mdnie_request_table(mdnie->path, table);
-	if (!IS_ERR_OR_NULL(table) && !IS_ERR_OR_NULL(table->name)) {
-		for (i = 0; i < table->tune[MDNIE_CMD1].size; i++)
-			pos += sprintf(pos, "0x%02x ", table->tune[MDNIE_CMD1].sequence[i]);
-		pos += sprintf(pos, "\n");
-	}
-
-exit:
-	pos += sprintf(pos, "-- %s\n", __func__);
-
-	return pos - buf;
-}
-
-static ssize_t tuning_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
-{
-	struct mdnie_info *mdnie = dev_get_drvdata(dev);
-	int ret;
-
-	if (sysfs_streq(buf, "0") || sysfs_streq(buf, "1")) {
-		ret = kstrtouint(buf, 0, &mdnie->tuning);
-		if (ret < 0)
-			return ret;
-		if (!mdnie->tuning) 
-			memset(mdnie->path, 0, sizeof(mdnie->path));
-
-		dev_info(dev, "%s: %s\n", __func__, mdnie->tuning ? "enable" : "disable");
-	} else {
-		if (!mdnie->tuning)
-			return count;
-
-		if (count > (sizeof(mdnie->path) - sizeof(MDNIE_SYSFS_PREFIX))) {
-			dev_err(dev, "file name %s is too long\n", mdnie->path);
-			return -ENOMEM;
-		}
-
-		memset(mdnie->path, 0, sizeof(mdnie->path));
-		snprintf(mdnie->path, sizeof(MDNIE_SYSFS_PREFIX) + count-1, "%s%s", MDNIE_SYSFS_PREFIX, buf);
-		dev_info(dev, "%s: %s\n", __func__, mdnie->path);
-
-		mdnie_update(mdnie);
-	}
 
 	return count;
 }
@@ -635,7 +584,6 @@ static ssize_t hmtColorTemp_store(struct device *dev,
 static struct device_attribute mdnie_attributes[] = {
 	__ATTR(mode, 0664, mode_show, mode_store),
 	__ATTR(scenario, 0664, scenario_show, scenario_store),
-	__ATTR(tuning, 0664, tuning_show, tuning_store),
 	__ATTR(accessibility, 0664, accessibility_show, accessibility_store),
 	__ATTR(color_correct, 0444, color_correct_show, NULL),
 	__ATTR(bypass, 0664, bypass_show, bypass_store),
