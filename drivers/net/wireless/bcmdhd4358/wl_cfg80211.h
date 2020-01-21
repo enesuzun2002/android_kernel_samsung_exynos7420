@@ -431,12 +431,12 @@ struct net_info {
 };
 
 /* association inform */
-#define MAX_REQ_LINE 1024
+#define MAX_REQ_LINE 1024u
 struct wl_connect_info {
 	u8 req_ie[MAX_REQ_LINE];
-	s32 req_ie_len;
+	u32 req_ie_len;
 	u8 resp_ie[MAX_REQ_LINE];
-	s32 resp_ie_len;
+	u32 resp_ie_len;
 };
 
 /* firmware /nvram downloading controller */
@@ -1288,6 +1288,9 @@ extern void wl_cfg80211_del_p2p_wdev(void);
 #if defined(CUSTOMER_HW4)
 extern int wl_cfg80211_is_primary_device(struct net_device *ndev);
 extern int wl_cfg80211_is_connected(struct net_device *ndev);
+#ifdef DHD_API_SUPPORT
+extern int wl_check_wifi_scanning(void);
+#endif /* DHD_API_SUPPORT */
 #endif /* CUSTOMER_HW4 */
 
 #ifdef QOS_MAP_SET
