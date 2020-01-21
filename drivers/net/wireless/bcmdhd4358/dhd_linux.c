@@ -168,7 +168,7 @@ extern void dhd_dump_eapol_4way_message(char *dump_data, bool direction);
 /* Maximum STA per radio */
 #define DHD_MAX_STA     32
 
-static int wl_divide = 3;
+static int wl_divide = 1;
 module_param(wl_divide, int, 0644);
 
 const uint8 wme_fifo2ac[] = { 0, 1, 2, 3, 1, 1 };
