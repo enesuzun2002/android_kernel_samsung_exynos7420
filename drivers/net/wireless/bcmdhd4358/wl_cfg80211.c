@@ -11915,7 +11915,7 @@ wl_cfg80211_netdev_notifier_call(struct notifier_block * nb,
 					break;
 				}
 				set_current_state(TASK_INTERRUPTIBLE);
-				(void)schedule_timeout(HZ);
+				(void)schedule_timeout(100);
 				set_current_state(TASK_RUNNING);
 				refcnt++;
 			}
